@@ -30,23 +30,15 @@ from utils.slam_external import calc_ssim, build_rotation, prune_gaussians
 from utils.eval_helpers import report_loss#, report_progress
 from utils.common_utils import save_params
 
-### original Semantic-FastSAM modules ###
-sys.path.append("third_parties/Semantic_Fast_SAM")
-from fastsam import FastSAM
-from transformers import CLIPProcessor, CLIPModel
-from transformers import AutoProcessor, CLIPSegForImageSegmentation
-from transformers import OneFormerProcessor, OneFormerForUniversalSegmentation
 from transformers import AutoProcessor, AutoModelForUniversalSegmentation
-from transformers import BlipProcessor, BlipForConditionalGeneration
-from third_parties.Semantic_Fast_SAM.oneformer import oneformer_coco_segmentation
+
 
 # modified version
 from src.slam.splatam.modified_ver.scripts.splatam import *
 from src.slam.semsplatam.modified_ver.splatam.eval_helper import *
-from src.slam.semsplatam.modified_ver.semantic_fastsam.oneformer import oneformer_segmentation,positive_normalize
+from src.slam.semsplatam.modified_ver.semantic.oneformer import oneformer_segmentation,positive_normalize
 from src.slam.semsplatam.modified_ver.splatam.splatam import *
 from src.slam.semsplatam.modified_ver.splatam.export_helper import *
-from src.slam.semsplatam.modified_ver.semantic_fastsam.fastsam import semantic_annotation_pipeline
 from src.data.finetune_oneformer_ReplicaV2 import modify_metadata
 from src.slam.semsplatam.modified_ver.scripts.splatam import get_dataset
 PRINT_INFO = True
@@ -66,7 +58,6 @@ class SemSplatam(SplatamOurs):
         self.load_eval_dataset_with_semantic()
         ### loading in segmantation network and Langeuage encoder ###
         self.semantic_device = self.slam_cfg['semantic_device']
-        # self.fastsam_model = FastSAM(self.slam_cfg['fastsam_checkpoint'])
         self.oneformer_processor = AutoProcessor.from_pretrained(self.slam_cfg['ade20k_checkpoint'])
         self.oneformer_model = AutoModelForUniversalSegmentation.from_pretrained(
             self.slam_cfg['oneformer_checkpoint'],is_training=False).to(self.semantic_device)
@@ -74,14 +65,6 @@ class SemSplatam(SplatamOurs):
         self.topk = self.slam_cfg['num_topk_logits']
         self.oneformer_processor.image_processor.num_text = self.oneformer_model.config.num_queries - self.oneformer_model.config.text_encoder_n_ctx
 
-        # self.clip_processor = CLIPProcessor.from_pretrained(self.slam_cfg['clip_checkpoint'])
-        # self.clip_model = CLIPModel.from_pretrained(self.slam_cfg['clip_checkpoint']).to(
-        #     self.semantic_device)
-        # self.clipseg_processor = AutoProcessor.from_pretrained(self.slam_cfg['clipseg_checkpoint'])
-        # self.clipseg_model = CLIPSegForImageSegmentation.from_pretrained(self.slam_cfg['clipseg_checkpoint']).to(self.semantic_device)
-        # self.clipseg_processor.image_processor.do_resize = False
-        # self.blip_processor = BlipProcessor.from_pretrained(self.slam_cfg['blip_checkpoint'])
-        # self.blip_model = BlipForConditionalGeneration.from_pretrained(self.slam_cfg['blip_checkpoint']).to(self.semantic_device)
         class_info_file = self.slam_cfg['class_info_file']
         if os.path.exists(class_info_file):
             self.class_info_file = class_info_file
@@ -171,24 +154,6 @@ class SemSplatam(SplatamOurs):
                                                                                        self.semantic_device,
                                                                                        num_classes=self.n_cls)
         return class_ids_from_oneformer[0], class_logits_from_oneformer[0]  # (H,W), (H,W,150)
-
-    # def fastsam_annotation(self, input_img: torch.Tensor):
-    #     semantic_annotation_pipeline(image=input_img,
-    #                                  target_class_list=self.cls2label,
-    #                                  rank=self.semantic_device, save_img=False, scale_small=1.2,
-    #                                  scale_large=1.6, scale_huge=1.6,
-    #                                  fastsam_model=self.fastsam_model,
-    #                                  clip_processor=self.clip_processor,
-    #                                  clip_model=self.clip_model,
-    #                                  oneformer_ade20k_processor=self.oneformer_ade20k_processor,
-    #                                  oneformer_ade20k_model=self.oneformer_ade20k_model,
-    #                                  oneformer_coco_processor=self.oneformer_coco_processor,
-    #                                  oneformer_coco_model=self.oneformer_coco_model,
-    #                                  blip_processor=self.blip_processor,
-    #                                  blip_model=self.blip_model,
-    #                                  clipseg_processor=self.clipseg_processor,
-    #                                  clipseg_model=self.clipseg_model,
-    #                                  )
 
     def init_exploration_map(self, sim2slam: torch.tensor):
         """ initialize exploration map (grid)
@@ -352,8 +317,6 @@ class SemSplatam(SplatamOurs):
                                                    camera_grad=False)
 
         # Initialize Render Variables
-        # seman_rendervar = transformed_params2semrendervar(params, variables, transformed_gaussians, seen)
-        # logits, _,  = SEMRenderer(raster_settings=cam)(**seman_rendervar) # 133.H.W
         seman_rendervar = transformed_params2semrendervar_sparse(params, transformed_gaussians, seen)
         sparse_cam = set_camera_sparse(cam=cam, cls_ids=variables['seman_cls_ids'])
         logits, _, = SEMRenderer_sparse(raster_settings=sparse_cam)(**seman_rendervar)
@@ -509,11 +472,6 @@ class SemSplatam(SplatamOurs):
             color_ig = calc_psnr(color*valid_depth_mask, kf['color']*valid_depth_mask).mean()
             color_igs.append(color_ig)
 
-            ####### compute entropy #####
-            # seman_cls, seman_logits = self.render_semantic(c2w,seen)
-            # entropy = calc_shannon_entropy(seman_logits, dim=0)
-            # unidentify = ((seman_cls == 0) | (entropy > 3.0)) & valid_depth_mask
-
             seg_img = kf['color'].clone().permute(1, 2, 0).to(self.semantic_device)
             pseudo_cls, pseudo_logits = self.semantic_annotation(seg_img)
             pseudo_logits = pseudo_logits.to(self.device)
@@ -578,11 +536,7 @@ class SemSplatam(SplatamOurs):
                 self.slam_cfg.surface_dist_thre,
                 self.slam_cfg.get("find_free_indices_bs", 10000)
                 )
-            
-            ## FIXME: debug visualization ##
-            # self.explr_map.visualize(time_idx, in_slam_world=False)
-            # ckpt_output_dir = os.path.join(config["workdir"], config["run_name"])
-            # save_params_ckpt(self.params, ckpt_output_dir, time_idx)
+
 
     def update_gs_map(self, 
                           time_idx: int,
@@ -856,12 +810,9 @@ class SemSplatam(SplatamOurs):
                 ### frame selection for map update
                 ##################################################
                 ### Overlap Keyframe ###
-                # Randomly select a frame until current time step amongst keyframes
 
                 if only_use_global_keyframe or (self.slam_cfg.use_global_keyframe and iter > num_iters_mapping // 2):
-                    # selected_keyframes = [i for i in range(len(self.global_keyframe_indices))]
                     ### Global Keyframe ###
-                    # rand_idx = np.random.randint(0, len(selected_keyframes))
                     if len(self.global_keyframe_indices) == 1:
                         iter_time_idx = time_idx
                         iter_color = color
@@ -879,12 +830,8 @@ class SemSplatam(SplatamOurs):
                         if 'crop_mask' in keyframe_list[selected_rand_keyframe_idx].keys():
                             iter_crop_mask = keyframe_list[selected_rand_keyframe_idx]['crop_mask']
                         else:
-                            # iter_crop_mask = get_crop_mask(iter_color,crop_size=50)
-                            # topk_probs, _ = torch.topk(iter_seman.clone(),k=16,dim=0)
-                            # iter_crop_mask = (topk_probs.sum(0)>0.5).clone()
                             iter_crop_mask = get_uncert_mask(iter_seman,filter_pct=0.1,thres=self.slam_cfg['uncert_mask_thres'])
                             keyframe_list[selected_rand_keyframe_idx]['crop_mask'] = iter_crop_mask
-                            # del topk_probs
                 else:
                     rand_idx = np.random.randint(0, len(selected_keyframes))
                     selected_rand_keyframe_idx = selected_keyframes[rand_idx]
@@ -907,12 +854,8 @@ class SemSplatam(SplatamOurs):
                             iter_crop_mask = keyframe_list[selected_rand_keyframe_idx]['crop_mask']
                         else:
                             iter_crop_mask = get_uncert_mask(iter_seman, filter_pct=0.1,thres= self.slam_cfg['uncert_mask_thres'])
-                            # topk_probs, _ = torch.topk(iter_seman.clone(),k=16,dim=0)
-                            # iter_crop_mask = (topk_probs.sum(0)>0.5).clone()
                             keyframe_list[selected_rand_keyframe_idx]['crop_mask'] = iter_crop_mask
-                            # del topk_probs
 
-                        #iter_seman = keyframe_list[selected_rand_keyframe_idx]['seman']
                 
                 iter_gt_w2c = self.gt_w2c_all_frames[:iter_time_idx+1]
                 iter_data = {'cam': cam, 'im': iter_color, 'depth': iter_depth, 'seman': iter_seman, 'id': iter_time_idx,

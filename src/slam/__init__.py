@@ -55,12 +55,10 @@ def init_SLAM_model(main_cfg: mmengine.Config, info_printer: InfoPrinter, logger
         slam = SplaTAM(main_cfg, info_printer, logger)
     elif main_cfg.slam.method == "semsplatam":
         info_printer("Initialize semsplatam...", 0, "semsplatam")
-        # from src.slam.semsplatam.semsplatamv2 import SemSplatamNaruto as SplaTAM
         from src.slam.semsplatam.semsplatam import SemSplatam as SemsplaTAM
         slam = SemsplaTAM(main_cfg, info_printer, logger)
     elif main_cfg.slam.method == "sgsslam":
         info_printer("Initialize sgsslam...", 0, "sgsslam")
-        # from src.slam.semsplatam.semsplatamv2 import SemSplatamNaruto as SplaTAM
         from src.slam.sgsslam.sgsslam import SGSSLAMOurs as SGSSLAM
         slam = SGSSLAM(main_cfg, info_printer, logger)
     else:

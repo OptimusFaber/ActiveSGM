@@ -36,7 +36,7 @@ from utils.recon_helpers import setup_camera
 from transformers import AutoProcessor, AutoModelForUniversalSegmentation
 
 # modified version
-from src.slam.semsplatam.modified_ver.semantic_fastsam.oneformer import oneformer_segmentation
+from src.slam.semsplatam.modified_ver.semantic.oneformer import oneformer_segmentation
 from src.data.finetune_oneformer_ReplicaV2 import modify_metadata
 from src.slam.semsplatam.modified_ver.scripts.splatam import get_dataset
 from src.slam.semsplatam.modified_ver.splatam.export_helper import save_rgb_ply

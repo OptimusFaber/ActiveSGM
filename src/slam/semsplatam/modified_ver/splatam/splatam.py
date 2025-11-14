@@ -26,7 +26,7 @@ from channel_rasterization import GaussianRasterizationSettings as Camera
 from sparse_channel_rasterization import GaussianRasterizer as SEMRenderer_sparse
 from sparse_channel_rasterization import GaussianRasterizationSettings as Camera_sparse
 
-from src.slam.semsplatam.modified_ver.semantic_fastsam.oneformer import positive_normalize
+from src.slam.semsplatam.modified_ver.semantic.oneformer import positive_normalize
 
 def setup_camera(w, h, k, w2c, near=0.01, far=100, num_channels=102):
     fx, fy, cx, cy = k[0][0], k[1][1], k[0][2], k[1][2]

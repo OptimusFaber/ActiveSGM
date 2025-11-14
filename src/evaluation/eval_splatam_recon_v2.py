@@ -337,7 +337,6 @@ def transform_point_cloud(transformation: torch.Tensor, point_cloud: np.ndarray)
     
     return transformed_points
 
-
 args = argument_parsing()
 
 ##################################################

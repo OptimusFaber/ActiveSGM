@@ -6,7 +6,7 @@ import numpy as np
 from third_parties.splatam.utils.common_utils import params2cpu
 from src.slam.semsplatam.modified_ver.splatam.splatam import calc_shannon_entropy
 from src.utils.general_utils import create_class_colormap,apply_colormap
-from src.slam.semsplatam.modified_ver.semantic_fastsam.oneformer import positive_normalize
+from src.slam.semsplatam.modified_ver.semantic.oneformer import positive_normalize
 
 def save_params_ckpt(output_params, output_variables, output_dir, time_idx):
     # Convert to CPU Numpy Arrays
