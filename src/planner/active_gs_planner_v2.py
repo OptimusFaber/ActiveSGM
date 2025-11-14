@@ -1158,11 +1158,6 @@ class ActiveGSPlannerv2(NarutoPlanner):
                     gs_z_levels = self.gs_z_levels[self.exploration_stage]
                     xy_sampling_step = self.planner_cfg.xy_sampling_step[self.exploration_stage]
                     gs_slam.explr_map.prev_free_voxels = torch.empty(0, 3).to(self.device)
-
-                # if not(self.first_done_exploration):
-                #     # self.gs_slam.print_and_save_result("exploration_prune", is_prune_gaussians=True)
-                #     self.gs_slam.print_and_save_result(f"exploration_{self.step:04}", is_prune_gaussians=False)
-                #     self.first_done_exploration = True
                 
 
             # if not(is_explore_done):
@@ -1199,23 +1194,6 @@ class ActiveGSPlannerv2(NarutoPlanner):
                     explore_ig = (valid_mask==0).sum()
                     explore_igs.append(explore_ig)
 
-                    # #####  recognize igs ##########
-                    # TOPK = self.topk_cls_confidence[self.exploration_stage]
-                    # topk_logits, _ = torch.topk(logits, k=TOPK,dim=0)
-                    # valid_logit_mask = topk_logits.sum(0) > 0.5
-                    # # valid_logit_mask = logits.max(0).values > 0.5
-                    # valid_logit_mask[~valid_sim_mask] = True
-                    # recognize_ig = (valid_logit_mask==0).sum()
-                    # recognize_igs.append(recognize_ig)
-
-                    # if (explore_ig / (self.img_h*self.img_w) ) < 0.5:
-                    #     ### semantic entropy ######
-                    #     topk_prob, _ = torch.topk(logits[:,valid_entropy_mask], 16, dim=0)
-                    #     entropy = calc_shannon_entropy(topk_prob, dim=0).median()
-                    #     seman_entropies.append(entropy)
-                    # else:
-                    #     seman_entropies.append(torch.ones(1).squeeze().to(logits.device))
-
                     ### semantic information
                     topk_prob, _ = torch.topk(logits, 16, dim=0)
                     entropy = calc_shannon_entropy(topk_prob, dim=0).mean()
@@ -1224,9 +1202,6 @@ class ActiveGSPlannerv2(NarutoPlanner):
                 ### compute weighted exploration I.G., weighted by distance ###
                 explore_igs = torch.stack(explore_igs).float()
                 explore_igs_sm = torch.nn.functional.softmax(torch.log(explore_igs), dim=0)
-
-                # recognize_igs = torch.stack(recognize_igs).float()
-                # recognize_igs_sm = torch.nn.functional.softmax(torch.log(recognize_igs), dim=0)
 
                 ### semantic entropy
                 seman_entropies = torch.stack(seman_entropies).float()
@@ -1246,8 +1221,6 @@ class ActiveGSPlannerv2(NarutoPlanner):
                 self.del_explore_pool_cand(explore_igs, cand_keys, self.planner_cfg.explore_thre,self.planner_cfg.recognize_thre)
                 self.info_printer(f"Current state: {self.state} [Exploration Pool: {len(self.explore_pool)}]", self.step, self.__class__.__name__)
                 self.info_printer(f"                            Exploration I.G.   : {explore_igs}", self.step, self.__class__.__name__)
-                # self.info_printer(f"                            Recognization I.G.   : {recognize_igs}", self.step,
-                #                   self.__class__.__name__)
                 self.info_printer(f"                            Semantic Entropy   : {seman_entropies}", self.step,
                               self.__class__.__name__)
         ##################################################
@@ -1261,13 +1234,11 @@ class ActiveGSPlannerv2(NarutoPlanner):
             self.gs_slam.update_prev_keyframes()
 
             ### update REFINE_POOL (add new keyframes to REFINE_POOL) ###
-            ### FIXME: only use global keyframe ###
             selected_kf_list = [elem for elem, mask in zip(self.gs_slam.keyframe_list, new_kfs) if mask]
             self.add_refine_pool_cand(selected_kf_list)
 
             ### render poses in REFINE_POOL ###
             cand_data, cand_keys, cand_poses = self.get_refine_pool_data()
-            refine_igs = []
             color_igs = []
             depth_igs = []
             seman_igs = []
@@ -1297,12 +1268,8 @@ class ActiveGSPlannerv2(NarutoPlanner):
             seman_igs = torch.stack(seman_igs).float()
 
             color_igs_sm = 1 - torch.nn.functional.softmax(color_igs, dim=0)
-            # depth_igs_sm = torch.nn.functional.softmax(depth_igs, dim=0)
             seman_igs_sm = torch.nn.functional.softmax(seman_igs, dim=0)
-            # refine_igs = color_igs_sm * depth_igs_sm
             refine_igs = color_igs_sm * seman_igs_sm
-            # weighted_refine_igs = (1 - dists_sm) * refine_igs
-            # new_pose = cand_poses[torch.argmax(weighted_refine_igs)]
             best_key = torch.argmax(refine_igs)
             new_pose = cand_poses[best_key]
 
@@ -1351,12 +1318,9 @@ class ActiveGSPlannerv2(NarutoPlanner):
                 ### render poses in REFINE_POOL ###
                 cand_data, cand_keys, cand_poses = self.get_refine_pool_data()
                 color_igs = []
-                depth_igs = []
                 seman_igs = []
 
                 ### compute distance between current pose and candidate poses ###
-                # dists = torch.norm(cand_poses[:, :3, 3] - cur_pose[:3, 3], dim=1) + 1e-6 # avoid zero dist case
-                # dists_sm = torch.nn.functional.softmax(dists, dim=0)
                 for i, cand_pose in enumerate(cand_poses):
                     color, depth, valid_mask, seen = gs_slam.render(cand_pose)
                     pred_cls_ids, pred_logits = gs_slam.render_semantic(cand_pose, seen)
@@ -1367,33 +1331,16 @@ class ActiveGSPlannerv2(NarutoPlanner):
                     valid_depth_mask = cand_data[i]['depth'] > 0
                     color_ig = calc_psnr(color*valid_depth_mask, cand_data[i]['color']*valid_depth_mask).mean()
                     color_igs.append(color_ig)
-                    # depth_ig = (torch.abs(depth*valid_depth_mask - cand_data[i]['depth']*valid_depth_mask)/(cand_data[i]['depth']+1e-8)).sum() / valid_depth_mask.sum()
-                    # depth_igs.append(depth_ig)
 
-                    # TODO: add semantic ig
-                    # cand_seg_img = cand_data[i]['color'].permute(1, 2, 0).clone().to(gs_slam.semantic_device)
-                    # cls_ids, _ = gs_slam.semantic_annotation(cand_seg_img)
-                    # cls_ids = cls_ids.to(pred_cls_ids.device).squeeze()
-                    # valid_cls = (cls_ids > 0)
-                    # corrects = (cls_ids == pred_cls_ids) & valid_cls
                     topk_probs, _ = torch.topk(pred_logits, k=16,dim=0)
                     recognize_mask = topk_probs.sum(0)>0.5
                     seman_ig = (recognize_mask & valid_depth_mask).sum()/valid_depth_mask.sum()
 
-                    # seman_ig = corrects.sum() / valid_cls.sum() # actually is acc
                     seman_igs.append(seman_ig)
 
                 ### compute weighted Refinement I.G., weighted by distance ###
                 color_igs = torch.stack(color_igs).float()
-                # depth_igs = torch.stack(depth_igs).float()
                 seman_igs = torch.stack(seman_igs).float()
-
-                # color_igs_sm = 1 - torch.nn.functional.softmax(color_igs, dim=0)
-                # depth_igs_sm = torch.nn.functional.softmax(depth_igs, dim=0)
-                # seman_igs_sm = torch.nn.functional.softmax(seman_igs, dim=0)
-                # refine_igs = color_igs_sm * depth_igs_sm
-                # refine_igs = color_igs_sm
-                # refine_igs = color_igs_sm * seman_igs_sm
 
                 ### remove refined views from REFINE_POOL ###
                 self.info_printer(f"Current state: {self.state} [Refinement Pool: {len(self.refine_pool)}]", self.step, self.__class__.__name__)
