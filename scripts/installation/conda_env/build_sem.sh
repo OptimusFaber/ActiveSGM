@@ -31,13 +31,6 @@ git checkout 3bb904e
 cd external/NumpyMarchingCubes
 python setup.py install
 
-### FastSAM installation ###
-pip install -r ./envs/requirements_semantic.txt
-pip install git+https://github.com/openai/CLIP.git
-
-#### open vocabulary #######
-python -m spacy download en_core_web_sm
-
 #### install torch_sparse
 pip install torch-scatter==2.1.1 torch-sparse==0.6.17 -f https://data.pyg.org/whl/torch-1.13.1+cu117.html
 
@@ -47,8 +40,7 @@ bash scripts/data/replica_update.sh data/replica_v1
 bash scripts/data/replica_slam_download.sh
 
 ### create soft link if you did not download to the current dir
-ln -s /mnt/Data2/slam_datasets/replica_v1 ./data/replica_v1
-ln -s /mnt/Data2/slam_datasets/Replica ./data/Replica
-ln -s /mnt/Data2/slam_datasets/replica_sim_nvs ./data/replica_sim_nvs
-
-ln -s /mnt/Data4/slam_datasets/mp3d_sim_nvs ./data/mp3d_sim_nvs
+#ln -s /mnt/Data2/slam_datasets/replica_v1 ./data/replica_v1
+#ln -s /mnt/Data2/slam_datasets/Replica ./data/Replica
+#ln -s /mnt/Data2/slam_datasets/replica_sim_nvs ./data/replica_sim_nvs
+#ln -s /mnt/Data4/slam_datasets/mp3d_sim_nvs ./data/mp3d_sim_nvs
