@@ -61,13 +61,13 @@ do
         GT_MESH=$PROJ_DIR/data/replica_v1/${DASHSCENE}/mesh.ply
         result_dir=${RESULT_DIR}/${DATASET}/$scene/${EXP}/run_${i}
 
-        python src/evaluation/eval_splatam_result.py \
+        python src/evaluation/eval_nvs_result.py \
         --cfg ${CFG} --seed ${seed} --result_dir ${result_dir} --enable_vis ${ENABLE_VIS} --stage final
 
-        python src/evaluation/eval_splatam_result.py \
+        python src/evaluation/eval_nvs_result.py \
         --cfg ${CFG} --seed ${seed} --result_dir ${result_dir} --enable_vis ${ENABLE_VIS} --stage exploration_stage_0
 
-        python src/evaluation/eval_splatam_result.py \
+        python src/evaluation/eval_nvs_result.py \
         --cfg ${CFG} --seed ${seed} --result_dir ${result_dir} --enable_vis ${ENABLE_VIS} --stage exploration_stage_1
 
     done

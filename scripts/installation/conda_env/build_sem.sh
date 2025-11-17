@@ -24,6 +24,7 @@ pip install git+https://github.com/JonathonLuiten/diff-gaussian-rasterization-w-
 pip install charset_normalizer==2.0.4
 pip install mmengine==0.7.3
 pip install -r ./envs/requirements_activemap.txt
+pip install -r ./envs/requirements_semantic.txt
 
 ### CoSLAM installation ###
 cd ${ROOT}/third_parties/coslam
