@@ -220,6 +220,17 @@ def make_configuration(cfg: mmengine.Config) -> habitat_sim.simulator.Configurat
     backend_cfg.scene_id = cfg.simulator.scene_id
     assert os.path.exists(backend_cfg.scene_id)
     backend_cfg.enable_physics = cfg.simulator.physics.enable
+    # Set scene dataset config file if available
+    # Extract the base directory for the dataset (e.g., data/replica_v1/)
+    scene_id_parts = cfg.simulator.scene_id.split('/')
+    if 'replica_v1' in scene_id_parts:
+        dataset_base_idx = scene_id_parts.index('replica_v1')
+        dataset_base = '/'.join(scene_id_parts[:dataset_base_idx+1])
+        scene_dataset_config = os.path.join(dataset_base, 'replica.scene_dataset_config.json')
+        if os.path.exists(scene_dataset_config):
+            backend_cfg.scene_dataset_config_file = scene_dataset_config
+        else:
+            backend_cfg.scene_dataset_config_file = ""
 
     ##################################################
     ### Add camera sensor spects
