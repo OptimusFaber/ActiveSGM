@@ -84,6 +84,9 @@ class ReplicaDataset(GradSLAMDataset):
         return semantic_map
 
     def get_semantic_map(self,index):
+        if self.semantic_paths is None or len(self.semantic_paths) == 0:
+            # Return empty semantic map if no semantic files available (active mode)
+            return None
         semantic_path = self.semantic_paths[index]
         semantics = self.read_semantic_from_file(semantic_path)
         semantics = torch.from_numpy(semantics)

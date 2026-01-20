@@ -309,11 +309,22 @@ def eval(slam_model, dataset, final_params, final_variables, num_frames, eval_di
     l1_list = np.array(l1_list)
     ssim_list = np.array(ssim_list)
     lpips_list = np.array(lpips_list)
-    avg_psnr = psnr_list.mean()
-    avg_rmse = rmse_list.mean()
-    avg_l1 = l1_list.mean()
-    avg_ssim = ssim_list.mean()
-    avg_lpips = lpips_list.mean()
+    
+    # Check if lists are empty before computing mean
+    if len(psnr_list) == 0:
+        print("⚠️  No frames evaluated. Skipping metric computation.")
+        avg_psnr = np.nan
+        avg_rmse = np.nan
+        avg_l1 = np.nan
+        avg_ssim = np.nan
+        avg_lpips = np.nan
+    else:
+        avg_psnr = psnr_list.mean()
+        avg_rmse = rmse_list.mean()
+        avg_l1 = l1_list.mean()
+        avg_ssim = ssim_list.mean()
+        avg_lpips = lpips_list.mean()
+    
     print("Average PSNR: {:.2f}".format(avg_psnr))
     print("Average Depth RMSE: {:.2f} cm".format(avg_rmse*100))
     print("Average Depth L1: {:.2f} cm".format(avg_l1*100))
@@ -771,7 +782,14 @@ def eval_semantic(slam_model, dataset, final_params, final_variables, num_frames
 
     gt_w2c_list = []
     num_frames = len(dataset)
-
+    
+    # Check if GT semantics are available
+    has_gt_semantics = True
+    test_semantic = dataset.get_semantic_map(0)
+    if test_semantic is None:
+        print("⚠️  No ground truth semantics available. Skipping semantic evaluation (active mode).")
+        return  # Exit evaluation if no GT semantics
+    
     for time_idx in tqdm(range(num_frames)):
         # Get RGB-D Data & Camera Parameters
         color, _, intrinsics, pose = dataset[time_idx]
@@ -780,6 +798,11 @@ def eval_semantic(slam_model, dataset, final_params, final_variables, num_frames
         intrinsics = intrinsics[:3, :3]
 
         seman_gt = dataset.get_semantic_map(time_idx)
+        
+        # Skip if no GT semantic for this frame
+        if seman_gt is None:
+            continue
+            
         seg_img = color.clone().to(slam_model.semantic_device)
         seman_pseudo, seman_pseudo_logits = slam_model.semantic_annotation(seg_img)
         seman_pseudo = seman_pseudo.to(slam_model.device)
