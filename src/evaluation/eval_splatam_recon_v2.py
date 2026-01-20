@@ -68,24 +68,48 @@ def evenly_sample_points(gt_pts, pred_pts, pred_colors, num_sample_pts, voxel_si
     # Perform voxel grid sampling on gt_pts
     candidate_indices, voxel_dict = voxel_grid_sampling(gt_pts, voxel_size)
     
+    # Check if we have any candidate indices
+    if len(candidate_indices) == 0:
+        # No candidates, return empty arrays
+        return np.array([]).reshape(0, 3), np.array([]).reshape(0, 3), np.array([]).reshape(0, 3)
+    
     # Randomly choose num_sample_pts from candidates
     if len(candidate_indices) > num_sample_pts:
         chosen_indices = np.random.choice(candidate_indices, size=num_sample_pts, replace=False)
     else:
         chosen_indices = candidate_indices
 
+    # Check if chosen_indices is empty
+    if len(chosen_indices) == 0:
+        return np.array([]).reshape(0, 3), np.array([]).reshape(0, 3), np.array([]).reshape(0, 3)
+
     # Get corresponding voxel coordinates for the selected points
     chosen_voxel_coords = np.floor(gt_pts[chosen_indices] / voxel_size).astype(int)
 
     # Find nearest points in pred_pts to the chosen voxel coordinates
     voxel_centers = chosen_voxel_coords * voxel_size + voxel_size / 2
+    
+    # Check if pred_pts is empty
+    if len(pred_pts) == 0:
+        return np.array([]).reshape(0, 3), np.array([]).reshape(0, 3), np.array([]).reshape(0, 3)
+    
     pred_tree = KDTree(pred_pts)
     _, nearest_pred_indices = pred_tree.query(voxel_centers, k=1)
+    
+    # Flatten nearest_pred_indices if needed (KDTree.query returns shape (N, 1) for k=1)
+    if nearest_pred_indices.ndim > 1:
+        nearest_pred_indices = nearest_pred_indices.flatten()
+    
+    # Check if nearest_pred_indices is valid
+    if len(nearest_pred_indices) == 0 or np.any(nearest_pred_indices >= len(pred_pts)):
+        return np.array([]).reshape(0, 3), np.array([]).reshape(0, 3), np.array([]).reshape(0, 3)
 
     return gt_pts[chosen_indices], pred_pts[nearest_pred_indices], pred_colors[nearest_pred_indices]
 
 
 def completion_ratio(gt_points, rec_points, dist_th=0.05):
+    if len(gt_points) == 0 or len(rec_points) == 0:
+        return np.nan, np.array([], dtype=bool)
     gen_points_kd_tree = KDTree(rec_points)
     distances, _ = gen_points_kd_tree.query(gt_points)
     comp_ratio = np.mean((distances < dist_th).astype(np.float32))
@@ -93,6 +117,8 @@ def completion_ratio(gt_points, rec_points, dist_th=0.05):
 
 
 def accuracy(gt_points, rec_points):
+    if len(gt_points) == 0 or len(rec_points) == 0:
+        return np.nan, np.array([])
     gt_points_kd_tree = KDTree(gt_points)
     distances, _ = gt_points_kd_tree.query(rec_points)
     acc = np.mean(distances)
@@ -100,6 +126,8 @@ def accuracy(gt_points, rec_points):
 
 
 def completion(gt_points, rec_points):
+    if len(gt_points) == 0 or len(rec_points) == 0:
+        return np.nan, np.array([])
     gt_points_kd_tree = KDTree(rec_points)
     distances, _ = gt_points_kd_tree.query(gt_points)
     comp = np.mean(distances)
@@ -118,8 +146,20 @@ def color_pointcloud_by_values(pointcloud: trimesh.PointCloud, values: np.ndarra
         values (np.ndarray): Array of values (N,) to map to colors.
         output_file (str): The path to save the colored point cloud as a PLY file.
     """
+    # Check if values array is empty or pointcloud is empty
+    if values.size == 0 or len(pointcloud.vertices) == 0:
+        print(f"Warning: Empty values array or empty pointcloud for {output_file}, skipping export entirely.")
+        # Don't export empty pointclouds as it causes trimesh errors
+        return
+    
     # Normalize the values between 0 and 1
-    norm_values = (values - values.min()) / (values.max() - values.min())
+    values_min = values.min()
+    values_max = values.max()
+    if values_max == values_min:
+        # All values are the same, use uniform color
+        norm_values = np.zeros_like(values)
+    else:
+        norm_values = (values - values_min) / (values_max - values_min)
 
     # Map normalized values to colors (using a color map, e.g., coolwarm)
     colormap = cm.get_cmap('coolwarm')
@@ -143,9 +183,19 @@ def save_filtered_pointcloud(pointcloud: trimesh.PointCloud, mask: np.ndarray, o
         threshold (float): Threshold for filtering values.
         output_file (str): Path to save the filtered point cloud as a PLY file.
     """
+    # Check if pointcloud or mask is empty
+    if len(pointcloud.vertices) == 0 or mask.size == 0:
+        print(f"Warning: Empty pointcloud or mask for {output_file}, skipping export.")
+        return
+    
     # Identify points with values below the threshold
     # mask = values > threshold
     filtered_vertices = pointcloud.vertices[~mask]
+    
+    # Check if filtered result is empty
+    if len(filtered_vertices) == 0:
+        print(f"Warning: All points filtered out for {output_file}, skipping export.")
+        return
     
     # If colors exist, filter them as well
     if pointcloud.colors is not None:
@@ -261,8 +311,21 @@ def convert_gs_to_pcd(
     """
     xyz = params['means3D']
     color_precomp = params['rgb_colors']
-    sample_idxs, _ = voxel_grid_sampling(xyz, 0.01)
-    xyz = xyz[sample_idxs]
+    
+    # Convert to numpy if torch tensor
+    if isinstance(xyz, torch.Tensor):
+        xyz_np = xyz.detach().cpu().numpy()
+    else:
+        xyz_np = xyz
+    
+    sample_idxs, _ = voxel_grid_sampling(xyz_np, 0.01)
+    # Ensure sample_idxs is integer type
+    sample_idxs = sample_idxs.astype(np.int64)
+    
+    # Index using numpy array
+    xyz = xyz_np[sample_idxs]
+    if isinstance(color_precomp, torch.Tensor):
+        color_precomp = color_precomp.detach().cpu().numpy()
     color_precomp = color_precomp[sample_idxs]
 
     color_precomp = (color_precomp * 255).astype(np.uint8)
