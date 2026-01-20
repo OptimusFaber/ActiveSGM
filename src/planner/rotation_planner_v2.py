@@ -114,6 +114,18 @@ def smoothen_trajectory(start_pose, end_pose, positions, max_angle_deg=10, gravi
     start_quat = R.from_euler('xyz', start_rot, degrees=True).as_quat()
     end_quat = R.from_euler('xyz', end_rot, degrees=True).as_quat()
 
+    # Ensure positions is a numpy array with shape (N, 3)
+    if isinstance(positions, list):
+        positions = np.array(positions)
+    
+    # Ensure positions is 2D with shape (N, 3)
+    if len(positions.shape) == 3:
+        # If positions has shape (N, 1, 3), reshape to (N, 3)
+        positions = positions.reshape(-1, 3)
+    elif len(positions.shape) == 1:
+        # If positions is 1D, reshape to (1, 3)
+        positions = positions.reshape(1, -1)
+    
     # Interpolate quaternions with max angle constraint
     interp_quats, min_rotation_steps = lerp_quaternions(start_quat, end_quat, max_angle_deg)
     num_of_points = len(positions)
@@ -135,7 +147,9 @@ def smoothen_trajectory(start_pose, end_pose, positions, max_angle_deg=10, gravi
 
         extra_points = num_of_rotations - num_of_points
         print("More rotations than positions; extending positions with end point by", extra_points)
-        positions = np.vstack([positions, np.tile(positions[-1], (extra_points, 1))])
+        # Ensure positions[-1] is 1D before tiling
+        last_position = positions[-1].flatten()
+        positions = np.vstack([positions, np.tile(last_position, (extra_points, 1))])
 
     # Case 2: Positions > steps_for_180_deg * 2 (Positions should exceed rotations)
     elif num_of_points > steps_for_180_deg * 2:
@@ -340,6 +354,18 @@ def smoothen_trajectory_v2(start_pose, end_pose, positions, max_angle_deg=10, gr
     # start_quat = R.from_euler('xyz', start_rot, degrees=True).as_quat()
     # end_quat = R.from_euler('xyz', end_rot, degrees=True).as_quat()
 
+    # Ensure positions is a numpy array with shape (N, 3)
+    if isinstance(positions, list):
+        positions = np.array(positions)
+    
+    # Ensure positions is 2D with shape (N, 3)
+    if len(positions.shape) == 3:
+        # If positions has shape (N, 1, 3), reshape to (N, 3)
+        positions = positions.reshape(-1, 3)
+    elif len(positions.shape) == 1:
+        # If positions is 1D, reshape to (1, 3)
+        positions = positions.reshape(1, -1)
+    
     # Interpolate quaternions with max angle constraint
     interp_quats, min_rotation_steps = lerp_quaternions(start_quat, end_quat, max_angle_deg)
     num_of_points = len(positions)
@@ -361,7 +387,9 @@ def smoothen_trajectory_v2(start_pose, end_pose, positions, max_angle_deg=10, gr
 
         extra_points = num_of_rotations - num_of_points
         print("More rotations than positions; extending positions with end point by", extra_points)
-        positions = np.vstack([positions, np.tile(positions[-1], (extra_points, 1))])
+        # Ensure positions[-1] is 1D before tiling
+        last_position = positions[-1].flatten()
+        positions = np.vstack([positions, np.tile(last_position, (extra_points, 1))])
 
     # Case 2: Positions > steps_for_180_deg * 2 (Positions should exceed rotations)
     elif num_of_points > steps_for_180_deg * 2:
