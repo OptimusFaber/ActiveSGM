@@ -229,6 +229,101 @@ class SemSplatam(SplatamOurs):
         self.first_frame_w2c = first_frame_w2c
         self.cam = cam
     
+    def init_camera_parameters_from_simulator(self, color, depth, c2w):
+        """Initialize using data from simulator (Active mode)"""
+        from src.slam.semsplatam.modified_ver.splatam.splatam import (
+            get_pointcloud_with_seman, initialize_params_with_seman, setup_camera
+        )
+        import torch.nn.functional as F
+        
+        # Get semantic segmentation
+        seg_img = color.clone().to(self.semantic_device)
+        _, seman = self.semantic_annotation(seg_img)
+        seman = seman.to(self.device)
+        
+        # Get intrinsics from dataset_sample (camera params don't change)
+        _, _, intrinsics, _ = self.dataset_sample[0]
+        intrinsics = intrinsics[:3, :3].to(self.device)
+        
+        # Process data - ensure everything is on GPU
+        color_processed = color.permute(2, 0, 1).to(self.device) / 255.0  # (H, W, 3) -> (3, H, W)
+        depth_processed = depth.unsqueeze(0).to(self.device)  # (H, W) -> (1, H, W)
+        seman_processed = seman.permute(2, 0, 1).to(self.device)  # (H, W, C) -> (C, H, W)
+        
+        H, W = color_processed.shape[1], color_processed.shape[2]
+        if (seman_processed.shape[1] != H) or (seman_processed.shape[2] != W):
+            seman_processed = F.interpolate(seman_processed.unsqueeze(0), (H, W), mode='bilinear')[0]
+        
+        # Convert c2w to w2c
+        w2c = torch.linalg.inv(c2w.to(self.device))
+        
+        # Setup Camera
+        cam = setup_camera(W, H, intrinsics.cpu().numpy(), w2c.detach().cpu().numpy(), num_channels=self.n_cls)
+        
+        # Get Initial Point Cloud
+        mask = (depth_processed > 0)
+        mask = mask.reshape(-1)
+        
+        init_pt_cld, mean3_sq_dist = get_pointcloud_with_seman(
+            color_processed, depth_processed, seman_processed, intrinsics, w2c,
+            mask=mask, compute_mean_sq_dist=True,
+            mean_sq_dist_method=self.config['mean_sq_dist_method']
+        )
+        
+        # Initialize Parameters
+        params, variables = initialize_params_with_seman(
+            init_pt_cld, self.num_frames, mean3_sq_dist,
+            self.config['gaussian_distribution'], self.topk
+        )
+        
+        # Initialize scene radius
+        variables['scene_radius'] = torch.max(depth_processed) / self.config['scene_radius_depth_ratio']
+        variables['n_cls'] = seman_processed.shape[0]
+        
+        print(f"✅ Initialized {params['means3D'].shape[0]:,} Gaussian points from simulator")
+        
+        # Setup densification parameters
+        dataset_config = self.config["data"]
+        if "densification_image_height" not in dataset_config:
+            self.seperate_densification_res = False
+            self.densify_intrinsics = intrinsics
+            self.densify_cam = cam
+        else:
+            if dataset_config["densification_image_height"] != H or dataset_config["densification_image_width"] != W:
+                self.seperate_densification_res = True
+                # Create densification camera with lower resolution
+                densify_h = dataset_config["densification_image_height"]
+                densify_w = dataset_config["densification_image_width"]
+                # Scale intrinsics for densification resolution
+                densify_fx = intrinsics[0, 0] * densify_w / W
+                densify_fy = intrinsics[1, 1] * densify_h / H
+                densify_cx = intrinsics[0, 2] * densify_w / W
+                densify_cy = intrinsics[1, 2] * densify_h / H
+                densify_intrinsics = torch.tensor([
+                    [densify_fx, 0, densify_cx],
+                    [0, densify_fy, densify_cy],
+                    [0, 0, 1]
+                ], device=self.device, dtype=torch.float32)
+                self.densify_intrinsics = densify_intrinsics
+                self.densify_cam = setup_camera(densify_w, densify_h, densify_intrinsics.cpu().numpy(), 
+                                               w2c.detach().cpu().numpy(), num_channels=self.n_cls)
+            else:
+                self.seperate_densification_res = False
+                self.densify_intrinsics = intrinsics
+                self.densify_cam = cam
+        
+        # Store parameters
+        self.params = params
+        self.variables = variables
+        self.intrinsics = intrinsics
+        self.first_frame_w2c = w2c
+        self.cam = cam
+        
+        if self.seperate_tracking_res:
+            self.tracking_cam = setup_camera(self.tracking_color.shape[2], self.tracking_color.shape[1], 
+                                        self.tracking_intrinsics.cpu().numpy(), w2c.detach().cpu().numpy(),
+                                             num_channels=self.n_cls)
+    
     @torch.no_grad()
     def render(self, c2w: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         ''' render rgb, mask, and depth based on a given pose
@@ -370,7 +465,8 @@ class SemSplatam(SplatamOurs):
         Returns:
         '''
         if time_idx == 0:
-            self.init_camera_parameters()
+            # Используем данные из симулятора для инициализации
+            self.init_camera_parameters_from_simulator(color, depth, c2w)
 
         seg_img = color.clone().to(self.semantic_device)
         self.semantic_annotation(seg_img)
