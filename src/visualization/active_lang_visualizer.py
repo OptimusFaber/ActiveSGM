@@ -66,6 +66,7 @@ class ActiveLangVisualizer(Visualizer):
                 os.makedirs(vis_dir, exist_ok=True)
 
         ### write remark ###
+        os.makedirs(os.path.join(self.main_cfg.dirs.result_dir, "visualization"), exist_ok=True)
         with open(os.path.join(self.main_cfg.dirs.result_dir, "visualization", "README.md"), 'w') as f:
             f.writelines("rgbd: GT RGB-D visualization\n")
             f.writelines("render_rgbd: render RGB-D visualization\n")
