@@ -2,7 +2,7 @@ import os
 import torch
 import numpy as np
 import trimesh
-import marching_cubes as mcubes
+import mcubes
 from matplotlib import pyplot as plt
 
 
