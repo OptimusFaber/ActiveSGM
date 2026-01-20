@@ -1,7 +1,12 @@
 import numpy as np
 import os
 
-_base_ = "../../default.py"
+from mmengine.config import read_base
+
+with read_base():
+    from ...default import *
+
+
 
 ##################################################
 ### General
@@ -9,7 +14,7 @@ _base_ = "../../default.py"
 general = dict(
     dataset = "Replica",
     scene = "office0",
-    num_iter = 2000,
+    num_iter = 500,
     device = 'cuda'
 )
 
@@ -81,7 +86,7 @@ if slam["method"] == "semsplatam":
 
         semantic_dir= "./data/replica_v1/office_0/habitat/",
         class_info_file='./configs/Replica/office0/class_info_file.json',
-        semantic_device="cuda:1",
+        semantic_device="cuda:0",
         oneformer_checkpoint='lly00412/oneformer-replica-finetune',
         coco_checkpoint='shi-labs/oneformer_coco_swin_large',
         ade20k_checkpoint="shi-labs/oneformer_ade20k_swin_large",
@@ -139,7 +144,7 @@ planner = dict(
     post_refinement_eval_freq = 100,
 
 
-    up_dir = np.array([0, 0, 1]), # up direction for planning pose
+    up_dir = [0, 0, 1], # up direction for planning pose
     use_traj_pose = True,                          # use pre-defined trajectory pose
     SLAMData_dir = os.path.join(                    # SLAM Data directory (for passive mapping or pre-defined trajectory pose)
         dirs["data_dir"], 
