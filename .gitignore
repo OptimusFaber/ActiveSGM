@@ -4,3 +4,5 @@
 /third_parties/
 *.bin
 *.pth
+/results*/
+__pycache__
