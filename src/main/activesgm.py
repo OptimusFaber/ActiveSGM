@@ -49,7 +49,7 @@ if __name__ == "__main__":
     args = argument_parsing()
     info_printer("Loading configuration...", 0, "Initialization")
     main_cfg = load_cfg(args)
-    main_cfg.dump(os.path.join(main_cfg.dirs.result_dir, 'main_cfg.json'))
+    # main_cfg.dump(os.path.join(main_cfg.dirs.result_dir, 'main_cfg.json'))  # Skip JSON dump to avoid serialization issues
     info_printer.update_total_step(main_cfg.general.num_iter)
     info_printer.update_scene(main_cfg.general.dataset + " - " + main_cfg.general.scene)
 
