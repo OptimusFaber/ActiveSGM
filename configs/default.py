@@ -53,7 +53,7 @@ if slam["method"] == "coslam":
         enable_active_planning = True,                  # enable/disable active planning
         enable_active_ray = True,                       # enable/disable active ray sampling
         
-        start_c2w = np.eye(4),                          # initial camera pose
+        start_c2w = [[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]],  # initial camera pose (identity matrix)
 
         ### volumes ###
         voxel_size = 0.1,                               # Voxel size for Uncertainty/SDF volume. Unit: meter
@@ -100,7 +100,7 @@ if planner["method"] == "naruto":
         ### path planning ###
         obs_per_goal            = 10,                   # maximum uncertain observation per goal
         enable_uncert_filtering = True,                 # filter uncertainty volume according to the traversability
-        up_dir                  = np.array([0, 0, 1]), # up direction for planning pose
+        up_dir                  = [0, 0, 1],            # up direction for planning pose
 
         ### RRT ###
         local_planner_method = "RRTNaruto",             # RRT method

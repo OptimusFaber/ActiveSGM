@@ -1,7 +1,12 @@
 import numpy as np
 import os
 
-_base_ = "../../default.py"
+from mmengine.config import read_base
+
+with read_base():
+    from ...default import *
+
+
 
 ##################################################
 ### NARUTO (General)
@@ -53,7 +58,7 @@ if _base_.slam["method"] == "coslam":
 ### Planner
 ##################################################
 planner = dict(
-    up_dir = np.array([0, 0, 1]),
+    up_dir = [0, 0, 1],
     voxel_size = 0.02,       # Uncertainty Volume voxel size. Unit: meter
 )
 

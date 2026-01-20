@@ -1,7 +1,12 @@
 import numpy as np
 import os
 
-_base_ = "../../default.py"
+from mmengine.config import read_base
+
+with read_base():
+    from ...default import *
+
+
 
 ##################################################
 ### NARUTO (General)
@@ -45,7 +50,7 @@ if _base_.slam["method"] == "coslam":
             "Replica", general['scene']
             ),
         
-        start_c2w = np.eye(4)
+        start_c2w = [[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]]
     )
 
 ##################################################
@@ -54,7 +59,7 @@ if _base_.slam["method"] == "coslam":
 planner = dict(
     ### RRT ###
     local_planner_method = "RRT",             # RRT method
-    up_dir = np.array([0, 0, 1]), # up direction for planning pose
+    up_dir = [0, 0, 1], # up direction for planning pose
 )
 
 ### NARUTO Planner ###

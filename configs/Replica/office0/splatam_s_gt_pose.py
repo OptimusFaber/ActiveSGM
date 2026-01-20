@@ -1,7 +1,12 @@
 import numpy as np
 import os
 
-_base_ = "../../default.py"
+from mmengine.config import read_base
+
+with read_base():
+    from ...default import *
+
+
 
 ##################################################
 ### General
@@ -52,7 +57,7 @@ if slam["method"] == "splatam":
 ##################################################
 planner = dict(
     method= "predefined_traj",                           # planner method
-    up_dir = np.array([0, 0, 1]), # up direction for planning pose
+    up_dir = [0, 0, 1], # up direction for planning pose
     use_traj_pose = True,                          # use pre-defined trajectory pose
     SLAMData_dir = os.path.join(                    # SLAM Data directory (for passive mapping or pre-defined trajectory pose)
         dirs["data_dir"], 

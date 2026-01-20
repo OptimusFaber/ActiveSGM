@@ -1,7 +1,12 @@
 import numpy as np
 import os
 
-_base_ = "../../default.py"
+from mmengine.config import read_base
+
+with read_base():
+    from ...default import *
+
+
 
 ##################################################
 ### NARUTO (General)
