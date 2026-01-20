@@ -9,26 +9,35 @@ Semantics-driven Active Mapping**. Published at Neurips 2025) [[Paper](https://a
 
 We provide scripts to create the conda environment, and recommend running ActiveSGM with Python 3.8 and CUDA 11.7 or CUDA 12.1. Please modify the scripts as needed to match your GPU and CUDA version.
 
-```
+```bash
 # Download
 git clone --recursive https://github.com/lly00412/ActiveSGM
 
-# Build conda environment
+# Build conda environment (installs everything including tiny-cuda-nn and diff-gaussian-rasterization)
 cd ActiveSGM
 bash scripts/installation/conda_env/build_sem.sh
 ```
+
+**Note:** The `build_sem.sh` script installs a complete environment including:
+- PyTorch 1.13.1 with CUDA 11.7
+- pytorch3d, habitat-sim
+- CUDA C++ Standard Library (CCCL)
+- tiny-cuda-nn
+- diff-gaussian-rasterization-w-depth
+- All other dependencies
+
 ### Build cuda tool for semantic rendering
 
 #### dense-channel-rasterization
-```
-# clone from github
+```bash
+# clone from github (if not already cloned with --recursive)
 git clone -b liyan/dev --single-branch https://github.com/lly00412/semantic-gaussians.git third_parties/channel_rasterization
 
 # go to the submodule directory
 cd ./third_parties/channel_rasterization/channel-rasterization/cuda_rasterizer
 
-# modify config.h base on number of class
-NUM_CHANNELS {num of class} // Default 3
+# modify config.h based on number of classes
+# Edit the file and change: NUM_CHANNELS {num of class} // Default 3
 
 # install the cuda tool
 cd ../..
@@ -37,16 +46,17 @@ pip install .
 ```
 
 #### sparse-channel-rasterization
-```
-# clone from github
+```bash
+# clone from github (if not already cloned with --recursive)
 git clone -b hairong/sparse_ver --single-branch https://github.com/lly00412/semantic-gaussians.git third_parties/sparse_channel_rasterization
 
 # go to the submodule directory
-cd ./third_parties/sparse_channel_rasterizationn/sparse-channel-rasterizationncuda_rasterizer
+cd ./third_parties/sparse_channel_rasterization/sparse-channel-rasterization/cuda_rasterizer
 
-# modify config.h base on number of class and number of logits to keep
-NUM_CHANNELS {num of class} // Default Replica: 102 MP3D:41
-TOP_K_LOGITS_CHANNELS {number of logits to keep} // Default 16  
+# modify config.h based on number of classes and logits to keep
+# Edit the file and change:
+# NUM_CHANNELS {num of class} // Default Replica: 102, MP3D: 41
+# TOP_K_LOGITS_CHANNELS {number of logits to keep} // Default 16  
 
 # install the cuda tool
 cd ../..
@@ -59,9 +69,26 @@ pip install .
 ### Dataset download
 We run the experiments on [Replica](https://github.com/facebookresearch/Replica-Dataset/tree/main) and [Matterport3D](https://niessner.github.io/Matterport/)(MP3D) dataset using Habitat simulator, please follow the instruction of [ActiveGAMER](https://github.com/oppo-us-research/ActiveGAMER) to download these two datasets.
 
+### Dataset configuration
+After downloading the datasets, you need to configure the paths in the configuration files:
+
+1. Update `configs/Replica/office0/habitat.py`:
+   - Set `scene_id` to point to your Replica dataset location (e.g., `/mnt/data/replica/office_0/habitat/mesh_semantic.ply`)
+
+2. Create Habitat scene configuration files:
+   - Add `render_asset` and `collision_asset` to `{dataset_path}/office_0/habitat/replicaSDK_stage.stage_config.json`
+   - Create `{dataset_path}/replica.scene_dataset_config.json` for Habitat scene dataset configuration
+
+3. Create necessary symlinks (if needed):
+   ```bash
+   ln -s /path/to/your/dataset/office_0 data/Replica/office0
+   touch data/Replica/office0/traj.txt
+   ```
+
 ### Semantic mesh filtering for Matterport3D
-We use Chamfer distance to remove floaters and generate clean semantic ground-truth meshes for MP3D scenes. Please run the following code before evaluation, and update the mesh file paths accordingly before running.```
-```
+We use Chamfer distance to remove floaters and generate clean semantic ground-truth meshes for MP3D scenes. Please run the following code before evaluation, and update the mesh file paths accordingly before running.
+
+```bash
 python src/data/filter_mesh_mp3d.py
 ```
 
@@ -83,12 +110,17 @@ GPU 0 ("device") is used for keyframe mapping and path planning,
 while GPU 1 ("semantic_device") handles the OneFormer interface and semantic rendering. 
 You can modify the "device" and "semantic_device" fields in the configuration files to assign these tasks to different GPUs as needed.
 
-```
+**Note:** For single-GPU setup, use `0` instead of `0,1` and set both `device` and `semantic_device` to `cuda:0` in the config file.
+
+```bash
 # Run ActiveSGM on Replica
 bash scripts/activesgm/run_replica.sh {SCENE} {NUM_RUN} {EXP} {ENABLE_VIS} {GPU_ID}
 
-# Run ActiveSGM on Replica office0
+# Run ActiveSGM on Replica office0 (dual-GPU)
 bash scripts/activesgm/run_replica.sh office0 1 ActiveSem 0 0,1
+
+# Run ActiveSGM on Replica office0 (single-GPU)
+bash scripts/activesgm/run_replica.sh office0 1 ActiveSem 0 0
 
 # Run Splatam
 bash scripts/activesgm/run_replica.sh office0 1 predefine 0 0,1
@@ -100,7 +132,7 @@ bash scripts/activesgm/run_replica.sh office0 1 sgsslam 0 0,1
 ## Evaluation
 
 We evaluate ActiveSGM for 3D reconstruction, Semantic Segmentation and Novel View Synthesis.
-```
+```bash
 # Evaluate 3D reconstruction
 bash scripts/evaluation/eval_replica_3d.sh office0 1 ActiveSem 0 0,1
 
@@ -110,6 +142,28 @@ bash scripts/evaluation/eval_replica_semantic.sh office0 1 ActiveSem 0 0 0 final
 # Evaluate novel view synthesis
 bash scripts/evaluation/eval_replica_nvs_result.sh office0 1 ActiveSem 0 0,1
 ```
+
+## Troubleshooting
+
+### Common Issues
+
+1. **CUDA C++ Standard Library not found** when building tiny-cuda-nn:
+   - Make sure you ran `build_sem.sh` which installs CUDA CCCL package
+   - Verify that `$CONDA_PREFIX/include/cuda/std` exists
+
+2. **Empty reconstruction (0 Gaussian points)**:
+   - Check that Habitat simulator can load the scene correctly
+   - Verify `scene_dataset_config.json` and `stage_config.json` are properly configured
+
+3. **NaN metrics (PSNR, Depth RMSE)**:
+   - This is expected in active mode where ground truth frames are not available
+   - Accuracy, Completeness, and Coverage metrics should have valid values
+
+4. **GPU memory issues**:
+   - Reduce the number of Gaussians by adjusting densification parameters
+   - Use a single GPU setup if dual-GPU causes issues
+
+For detailed setup instructions and known issues, see `SETUP_AND_USAGE.md`.
 
 ## Citation
 
