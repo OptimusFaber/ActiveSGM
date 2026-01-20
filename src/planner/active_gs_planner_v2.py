@@ -116,11 +116,17 @@ class ActiveGSPlannerv2(NarutoPlanner):
         self.view_rot_samples = []
         self.view_rot_idx = []
         for i in range(self.num_exploration_stage):
+            # Handle up_dir as either numpy array or list
+            if isinstance(self.planner_cfg.up_dir, list):
+                up_dir_tensor = torch.tensor(self.planner_cfg.up_dir, device=self.device, dtype=torch.float32)
+            else:
+                up_dir_tensor = torch.from_numpy(self.planner_cfg.up_dir).to(self.device).float()
+            
             self.view_rot_samples.append(self.generate_rotation_samples(
-                torch.from_numpy(self.planner_cfg.up_dir).to(self.device).float(),
+                up_dir_tensor,
                 self.num_dir_samples[i],
             )) # 1, K, 4, 4
-            self.view_rot_idx.append(torch.range(0, self.num_dir_samples[i]-1).unsqueeze(0).unsqueeze(2).to(self.device))
+            self.view_rot_idx.append(torch.arange(0, self.num_dir_samples[i]).unsqueeze(0).unsqueeze(2).to(self.device))
 
     def generate_circular_trajectory(self, radius: float, delta: float, steps: int) -> torch.Tensor:
         """
@@ -273,7 +279,7 @@ class ActiveGSPlannerv2(NarutoPlanner):
             raise NotImplementedError
         self.sim2slam = sim2slam
 
-        up_dir_sim = torch.from_numpy(self.planner_cfg.up_dir).float().to(self.sim2slam.device).unsqueeze(1)
+        up_dir_sim = torch.from_numpy(np.array(self.planner_cfg.up_dir)).float().to(self.sim2slam.device).unsqueeze(1)
         self.up_dir_slam = (self.sim2slam[:3, :3] @ up_dir_sim)[:, 0].cpu().numpy()
 
 
@@ -528,6 +534,19 @@ class ActiveGSPlannerv2(NarutoPlanner):
         Returns:
             Tensor: An Nx3 tensor of transformed 3D points.
         """
+        # Handle different input shapes - ensure points is 2D (N, 3)
+        original_shape = points.shape
+        if len(points.shape) == 1:
+            # Single point (3,) -> (1, 3)
+            points = points.unsqueeze(0)
+        elif len(points.shape) == 3:
+            # Batch of points (B, N, 3) -> reshape to (B*N, 3)
+            batch_size = points.shape[0]
+            num_points = points.shape[1]
+            points = points.reshape(-1, 3)
+        elif len(points.shape) != 2:
+            raise ValueError(f"Expected points to have 1, 2, or 3 dimensions, got {len(points.shape)}")
+        
         # Step 1: Convert points to homogeneous coordinates (Nx4)
         N = points.shape[0]
         ones = torch.ones((N, 1), dtype=points.dtype, device=points.device)  ### Add a column of ones
@@ -538,6 +557,12 @@ class ActiveGSPlannerv2(NarutoPlanner):
         
         # Step 3: Convert back from homogeneous to 3D by dividing by the last (homogeneous) coordinate
         transformed_points = transformed_homogeneous[:, :3] / transformed_homogeneous[:, 3].unsqueeze(1)
+
+        # Restore original shape if needed
+        if len(original_shape) == 1:
+            transformed_points = transformed_points.squeeze(0)
+        elif len(original_shape) == 3:
+            transformed_points = transformed_points.reshape(batch_size, num_points, 3)
 
         return transformed_points
 
@@ -587,12 +612,35 @@ class ActiveGSPlannerv2(NarutoPlanner):
         target_reachable = self.local_planner.run(use_free_space=True)
 
         if not(target_reachable):
-            raise NotImplementedError
+            # Fallback: используем прямой путь вместо ошибки
+            print(f"⚠️  RRT: Target not reachable. Using direct path as fallback.")
+            print(f"    Start voxel: {cur_vxl}")
+            print(f"    Goal voxel:  {goal_vxl}")
+            
+            # Создаём простой прямой путь с несколькими промежуточными точками в voxel space
+            num_waypoints = 5
+            path_points = []
+            for i in range(num_waypoints + 1):
+                t = i / num_waypoints
+                # Интерполяция в voxel space (НЕ умножаем на voxel_size здесь!)
+                waypoint_vxl = cur_vxl * (1 - t) + goal_vxl * t
+                path_points.append(waypoint_vxl)
+            
+            # Convert to numpy array (будет умножен на voxel_size в path_planning)
+            path = np.array(path_points)
+            return path
 
         ### find path ###
         path = self.local_planner.find_path()
         path = [i.get_xyz() for i in path[::-1]]
-        path = torch.concat(path, dim=0)
+        # Convert to numpy array (будет конвертирован в torch в path_planning)
+        path_np = []
+        for p in path:
+            if isinstance(p, torch.Tensor):
+                path_np.append(p.detach().cpu().numpy())
+            else:
+                path_np.append(p)
+        path = np.array(path_np)
         return path
 
 
@@ -641,6 +689,17 @@ class ActiveGSPlannerv2(NarutoPlanner):
             path *= self.voxel_size
             
             ### convert back to SLAM coordinates ###
+            # Ensure origin is on the same device as path
+            # path is numpy array from local_path_planning_rrt, convert to torch tensor
+            if not isinstance(path, torch.Tensor):
+                path = torch.from_numpy(path).float()
+            # Ensure path is on correct device
+            path = path.to(self.device)
+            # Ensure origin is on the same device as path
+            if isinstance(origin, torch.Tensor):
+                origin = origin.to(path.device)
+            else:
+                origin = torch.from_numpy(origin).float().to(path.device)
             path += origin
             path = self.coord_conversion_sim2slam(path)
             path = [i for i in path[1:]]
