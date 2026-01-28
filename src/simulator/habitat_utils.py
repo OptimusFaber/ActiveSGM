@@ -218,7 +218,25 @@ def make_configuration(cfg: mmengine.Config) -> habitat_sim.simulator.Configurat
     ### simulator configuration ###
     backend_cfg = habitat_sim.SimulatorConfiguration()
     backend_cfg.scene_id = cfg.simulator.scene_id
-    assert os.path.exists(backend_cfg.scene_id)
+    if not os.path.exists(backend_cfg.scene_id):
+        # Try alternative path with mesh_semantic.ply
+        scene_id_parts = backend_cfg.scene_id.split('/')
+        if 'habitat' in scene_id_parts and 'replicaSDK_stage.stage_config.json' in backend_cfg.scene_id:
+            # Replace with mesh_semantic.ply
+            alt_path = backend_cfg.scene_id.replace('replicaSDK_stage.stage_config.json', 'mesh_semantic.ply')
+            if os.path.exists(alt_path):
+                backend_cfg.scene_id = alt_path
+            else:
+                raise FileNotFoundError(
+                    f"Scene file not found: {backend_cfg.scene_id}\n"
+                    f"Also tried: {alt_path}\n"
+                    f"Please check that the scene mesh file exists in the habitat directory."
+                )
+        else:
+            raise FileNotFoundError(
+                f"Scene file not found: {backend_cfg.scene_id}\n"
+                f"Please check that the scene file exists."
+            )
     backend_cfg.enable_physics = cfg.simulator.physics.enable
     # Set scene dataset config file if available
     # Extract the base directory for the dataset (e.g., data/replica_v1/)

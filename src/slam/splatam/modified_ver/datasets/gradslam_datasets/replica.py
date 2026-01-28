@@ -53,13 +53,29 @@ class ReplicaDataset(GradSLAMDataset):
         poses = []
         with open(self.pose_path, "r") as f:
             lines = f.readlines()
+        num_poses_in_file = len(lines)
+        
+        if num_poses_in_file == 0:
+            raise ValueError(f"No poses found in {self.pose_path}")
+        
+        # Load all poses from file
+        file_poses = []
+        for line in lines:
+            if line.strip():  # Skip empty lines
+                c2w = np.array(list(map(float, line.split()))).reshape(4, 4)
+                # c2w[:3, 1] *= -1
+                # c2w[:3, 2] *= -1
+                c2w = torch.from_numpy(c2w).float()
+                file_poses.append(c2w)
+        
+        # If we have fewer poses than images, repeat the last pose
         for i in range(self.num_imgs):
-            line = lines[i]
-            c2w = np.array(list(map(float, line.split()))).reshape(4, 4)
-            # c2w[:3, 1] *= -1
-            # c2w[:3, 2] *= -1
-            c2w = torch.from_numpy(c2w).float()
-            poses.append(c2w)
+            if i < len(file_poses):
+                poses.append(file_poses[i])
+            else:
+                # Use the last available pose for remaining frames
+                poses.append(file_poses[-1])
+        
         return poses
 
     def read_embedding_from_file(self, embedding_file_path):

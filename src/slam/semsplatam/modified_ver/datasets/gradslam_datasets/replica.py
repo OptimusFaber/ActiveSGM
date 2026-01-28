@@ -65,13 +65,33 @@ class ReplicaDataset(GradSLAMDataset):
         poses = []
         with open(self.pose_path, "r") as f:
             lines = f.readlines()
+        num_poses_in_file = len([line for line in lines if line.strip()])  # Count non-empty lines
+        
+        if num_poses_in_file == 0:
+            raise ValueError(f"No poses found in {self.pose_path}")
+        
+        # Load all poses from file (skip empty lines)
+        file_poses = []
+        for line in lines:
+            if line.strip():  # Skip empty lines
+                c2w = np.array(list(map(float, line.split()))).reshape(4, 4)
+                # c2w[:3, 1] *= -1
+                # c2w[:3, 2] *= -1
+                c2w = torch.from_numpy(c2w).float()
+                file_poses.append(c2w)
+        
+        # If we have fewer poses than images, use the last available pose for remaining frames
+        # If we have more poses than images, use only the first num_imgs poses
         for i in range(self.num_imgs):
-            line = lines[i]
-            c2w = np.array(list(map(float, line.split()))).reshape(4, 4)
-            # c2w[:3, 1] *= -1
-            # c2w[:3, 2] *= -1
-            c2w = torch.from_numpy(c2w).float()
-            poses.append(c2w)
+            if i < len(file_poses):
+                poses.append(file_poses[i])
+            else:
+                # Use the last available pose for remaining frames
+                if len(file_poses) > 0:
+                    poses.append(file_poses[-1])
+                else:
+                    raise ValueError(f"Not enough poses in {self.pose_path} for {self.num_imgs} images")
+        
         return poses
 
     def read_embedding_from_file(self, embedding_file_path):
@@ -84,9 +104,6 @@ class ReplicaDataset(GradSLAMDataset):
         return semantic_map
 
     def get_semantic_map(self,index):
-        if self.semantic_paths is None or len(self.semantic_paths) == 0:
-            # Return empty semantic map if no semantic files available (active mode)
-            return None
         semantic_path = self.semantic_paths[index]
         semantics = self.read_semantic_from_file(semantic_path)
         semantics = torch.from_numpy(semantics)

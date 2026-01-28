@@ -25,6 +25,8 @@ SOFTWARE.
 
 import argparse
 import mmengine
+import types
+import json
 
 def override_cfg(
         args: argparse.Namespace,
@@ -76,6 +78,59 @@ def argument_parsing() -> argparse.Namespace:
                         help="ONLY for SplaTAM result evaluation ")
     args = parser.parse_args()
     return args
+
+
+def clean_config_for_json(cfg_dict):
+    """Remove non-serializable objects (like modules) from config dict"""
+    if isinstance(cfg_dict, mmengine.Config):
+        cfg_dict = dict(cfg_dict)
+    
+    if isinstance(cfg_dict, dict):
+        cleaned = {}
+        for key, value in cfg_dict.items():
+            if isinstance(value, types.ModuleType):
+                # Replace module with its name as string
+                cleaned[key] = f"<module: {value.__name__}>"
+            elif isinstance(value, (types.FunctionType, types.BuiltinFunctionType, type)):
+                # Replace functions and classes with their names
+                cleaned[key] = f"<{type(value).__name__}: {getattr(value, '__name__', str(value))}>"
+            elif isinstance(value, mmengine.Config):
+                cleaned[key] = clean_config_for_json(dict(value))
+            elif isinstance(value, dict):
+                cleaned[key] = clean_config_for_json(value)
+            elif isinstance(value, (list, tuple)):
+                cleaned_list = []
+                for item in value:
+                    if isinstance(item, types.ModuleType):
+                        cleaned_list.append(f"<module: {item.__name__}>")
+                    elif isinstance(item, (types.FunctionType, types.BuiltinFunctionType, type)):
+                        cleaned_list.append(f"<{type(item).__name__}: {getattr(item, '__name__', str(item))}>")
+                    elif isinstance(item, (dict, mmengine.Config)):
+                        cleaned_list.append(clean_config_for_json(item))
+                    else:
+                        cleaned_list.append(item)
+                cleaned[key] = cleaned_list if isinstance(value, list) else tuple(cleaned_list)
+            else:
+                cleaned[key] = value
+        return cleaned
+    else:
+        return cfg_dict
+
+
+def save_cfg_to_json(cfg: mmengine.Config, filepath: str):
+    """Save configuration to JSON file, cleaning non-serializable objects
+    
+    Args:
+        cfg: mmengine.Config object
+        filepath: path to save JSON file
+    """
+    import os
+    cleaned_cfg = clean_config_for_json(cfg)
+    dirname = os.path.dirname(filepath)
+    if dirname:
+        os.makedirs(dirname, exist_ok=True)
+    with open(filepath, 'w') as f:
+        json.dump(cleaned_cfg, f, indent=4, default=str)
 
 
 def load_cfg(args: argparse.Namespace) -> mmengine.Config:

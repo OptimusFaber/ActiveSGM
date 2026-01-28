@@ -365,7 +365,7 @@ def smoothen_trajectory_v2(start_pose, end_pose, positions, max_angle_deg=10, gr
     elif len(positions.shape) == 1:
         # If positions is 1D, reshape to (1, 3)
         positions = positions.reshape(1, -1)
-    
+
     # Interpolate quaternions with max angle constraint
     interp_quats, min_rotation_steps = lerp_quaternions(start_quat, end_quat, max_angle_deg)
     num_of_points = len(positions)

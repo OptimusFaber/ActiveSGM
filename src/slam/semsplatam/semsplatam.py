@@ -1212,10 +1212,12 @@ class SemSplatam(SplatamOurs):
         config = self.config
         checkpoint_time_idx = step
         print(f"Loading Checkpoint for Frame {checkpoint_time_idx}")
+        # Use logger/splatam directory where checkpoints are actually saved
+        checkpoint_dir = os.path.join(self.main_cfg.dirs.result_dir, "logger", "splatam")
         if checkpoint_time_idx == 0:
-            ckpt_path = os.path.join(config['workdir'], config['run_name'], f"{stage}/params.npz")
+            ckpt_path = os.path.join(checkpoint_dir, f"{stage}/params.npz")
         else:
-            ckpt_path = os.path.join(config['workdir'], config['run_name'], f"params{checkpoint_time_idx}.npz")
+            ckpt_path = os.path.join(checkpoint_dir, f"params{checkpoint_time_idx}.npz")
         params = dict(np.load(ckpt_path, allow_pickle=True))
         params = {k: torch.tensor(params[k]).cuda().float().requires_grad_(True) for k in params.keys()}
         self.variables = {'seman_cls_ids': params.pop('seman_cls_ids').to(torch.long),
