@@ -51,9 +51,7 @@ agent = dict(
 ### Camera
 ##################################################
 ### get FoV ###
-import math
-def calc_fov(size, focal):
-    return math.degrees(math.atan((size/2)/focal))*2
+fov = lambda size, focal: np.rad2deg(np.arctan((size/2)/focal))*2
 
 camera = dict(
     fps = simulator['FPS'],
@@ -65,7 +63,7 @@ camera = dict(
         horizontal = dict(
             num_rot = 1
         ),
-        fov = (calc_fov(680, 600), calc_fov(1200, 600)), # h, w
+        fov = (fov(680, 600), fov(1200, 600)), # h, w
     ),
     equirectangular = dict(
         enable = True,

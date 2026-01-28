@@ -52,8 +52,8 @@ if slam["method"] == "semsplatam":
         room_cfg        = f"{dirs['cfg_dir']}/../replica_splatam_s.py",   # SplaTAM room configuration
         # room_cfg        = f"{dirs['cfg_dir']}/../replica_splatam.py",   # SplaTAM room configuration
         enable_active_planning = True,                             # enable/disable active planning
-        dataset_eval_basedir = "data/replica_sim_nvs",
-        # dataset_eval_basedir="data/Replica",
+        # dataset_eval_basedir = "data/replica_sim_nvs",
+        dataset_eval_basedir="data/Replica",
 
         ### bounding box ###
         # bbox_bound = [[-2.2,2.6],[-3.4,2.1],[-1.4,2.0]],
