@@ -168,7 +168,12 @@ def eval(dataset, final_params, num_frames, eval_dir, sil_thres,
         os.makedirs(depth_dir, exist_ok=True)
 
     gt_w2c_list = []
-    num_frames = len(dataset)
+    # NOTE: during training we often want to eval only the already-processed prefix
+    # (otherwise metrics become NaN/inf due to uninitialized future poses/gaussians).
+    if num_frames is None:
+        num_frames = len(dataset)
+    num_frames = min(int(num_frames), len(dataset))
+
     for time_idx in tqdm(range(num_frames)):
          # Get RGB-D Data & Camera Parameters
         color, depth, intrinsics, pose = dataset[time_idx]
@@ -213,6 +218,9 @@ def eval(dataset, final_params, num_frames, eval_dir, sil_thres,
         rastered_depth = depth_sil[0, :, :].unsqueeze(0)
         # Mask invalid depth in GT
         valid_depth_mask = (curr_data['depth'] > 0)
+        # If GT depth is completely invalid, skip this frame to avoid NaNs/Infs
+        if valid_depth_mask.sum().item() == 0:
+            continue
         rastered_depth_viz = rastered_depth.detach()
         rastered_depth = rastered_depth * valid_depth_mask
         silhouette = depth_sil[1, :, :]
@@ -297,13 +305,17 @@ def eval(dataset, final_params, num_frames, eval_dir, sil_thres,
     try:
         # Compute the final ATE RMSE
         # Get the final camera trajectory
-        num_frames = final_params['cam_unnorm_rots'].shape[-1]
+        traj_frames = min(
+            final_params['cam_unnorm_rots'].shape[-1],
+            len(gt_w2c_list),
+            num_frames,
+        )
         latest_est_w2c = first_frame_w2c
         latest_est_w2c_list = []
         latest_est_w2c_list.append(latest_est_w2c)
         valid_gt_w2c_list = []
         valid_gt_w2c_list.append(gt_w2c_list[0])
-        for idx in range(1, num_frames):
+        for idx in range(1, traj_frames):
             # Check if gt pose is not nan for this time step
             if torch.isnan(gt_w2c_list[idx]).sum() > 0:
                 continue
@@ -327,6 +339,9 @@ def eval(dataset, final_params, num_frames, eval_dir, sil_thres,
         print('Failed to evaluate trajectory with alignment.')
     
     # Compute Average Metrics
+    if len(psnr_list) == 0:
+        print("Warning: no valid frames were evaluated (check GT depth validity / num_frames).")
+        return
     psnr_list = np.array(psnr_list)
     rmse_list = np.array(rmse_list)
     l1_list = np.array(l1_list)

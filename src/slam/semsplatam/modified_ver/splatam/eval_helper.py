@@ -121,7 +121,10 @@ def eval(slam_model, dataset, final_params, final_variables, num_frames, eval_di
         os.makedirs(seman_dir,exist_ok=True)
 
     gt_w2c_list = []
-    num_frames = len(dataset)
+    # Respect requested num_frames (useful for evaluation during training)
+    if num_frames is None:
+        num_frames = len(dataset)
+    num_frames = min(int(num_frames), len(dataset))
 
     for time_idx in tqdm(range(num_frames)):
          # Get RGB-D Data & Camera Parameters
@@ -171,6 +174,9 @@ def eval(slam_model, dataset, final_params, final_variables, num_frames, eval_di
         rastered_depth = depth_sil[0, :, :].unsqueeze(0)
         # Mask invalid depth in GT
         valid_depth_mask = (curr_data['depth'] > 0)
+        # If GT depth is completely invalid, skip this frame to avoid NaNs/Infs
+        if valid_depth_mask.sum().item() == 0:
+            continue
         rastered_depth_viz = rastered_depth.detach()
         rastered_depth = rastered_depth * valid_depth_mask
         silhouette = depth_sil[1, :, :]
@@ -304,6 +310,9 @@ def eval(slam_model, dataset, final_params, final_variables, num_frames, eval_di
         print('Failed to evaluate trajectory with alignment.')
     
     # Compute Average Metrics
+    if len(psnr_list) == 0:
+        print("Warning: no valid frames were evaluated (check GT depth validity / num_frames).")
+        return
     psnr_list = np.array(psnr_list)
     rmse_list = np.array(rmse_list)
     l1_list = np.array(l1_list)
@@ -530,6 +539,10 @@ def calc_miou(pred: torch.Tensor, target: torch.Tensor) -> float:
     classes = classes[classes != 0]
     iou_per_class = []
 
+    # If no valid classes found, return 0.0
+    if len(classes) == 0:
+        return 0.0
+
     for cls in classes:
         pred_cls = (pred == cls)
         true_cls = (target == cls)
@@ -543,6 +556,10 @@ def calc_miou(pred: torch.Tensor, target: torch.Tensor) -> float:
             iou = intersection / union
 
         iou_per_class.append(iou)
+
+    # If no valid IoU values, return 0.0
+    if len(iou_per_class) == 0:
+        return 0.0
 
     iou_per_class = torch.stack(iou_per_class)
     miou = torch.nanmean(iou_per_class).item()
@@ -577,6 +594,11 @@ def calc_iou_per_classes(pred: torch.Tensor, target: torch.Tensor, target_classe
     else:
         classes = torch.unique(torch.cat((pred, target)))
         classes = classes[classes != 0]
+    
+    # If no valid classes found, return empty tensor
+    if len(classes) == 0:
+        return torch.tensor([], device=pred.device, dtype=torch.float32)
+    
     iou_per_class = []
 
     for cls in classes:
@@ -593,17 +615,45 @@ def calc_iou_per_classes(pred: torch.Tensor, target: torch.Tensor, target_classe
 
         iou_per_class.append(iou)
 
+    # If no valid IoU values, return empty tensor
+    if len(iou_per_class) == 0:
+        return torch.tensor([], device=pred.device, dtype=torch.float32)
+
     iou_per_class = torch.stack(iou_per_class)
     return iou_per_class
 
 # TODO: preprocess like SGS-SLAM
 def post_precess_seg(pred_logits, target_id):
-    target_id = target_id.reshape(-1,1)
-    candidate_id, _ = torch.unique(target_id, dim=0,return_inverse=True)
-    post_logits = pred_logits[...,candidate_id].squeeze()
-    closest_indices = torch.argmax(post_logits,dim=-1)
-    post_id = candidate_id[closest_indices].squeeze()
-    return post_id
+    """
+    Re-color / remap semantic prediction logits to only the classes that appear in target_id.
+    This function must be robust to targets containing IDs outside the logits channel range.
+
+    Args:
+        pred_logits: (..., C) e.g. (H, W, C)
+        target_id: (H, W) integer ids
+
+    Returns:
+        post_id: (H, W) ids constrained to valid candidate ids
+    """
+    orig_shape = target_id.shape
+    # Flatten target ids and get unique candidates
+    target_flat = target_id.reshape(-1).to(pred_logits.device)
+    candidate_id = torch.unique(target_flat)
+
+    # Filter candidate ids to valid logits channel indices [0, C)
+    C = pred_logits.shape[-1]
+    valid_mask = (candidate_id >= 0) & (candidate_id < C)
+    candidate_id = candidate_id[valid_mask]
+
+    # If nothing is valid, return zeros (unknown)
+    if candidate_id.numel() == 0:
+        return torch.zeros(orig_shape, device=pred_logits.device, dtype=target_id.dtype)
+
+    # Select only candidate channels and pick best candidate per-pixel
+    post_logits = pred_logits[..., candidate_id]  # (H, W, K)
+    closest_indices = torch.argmax(post_logits, dim=-1)  # (H, W)
+    post_id = candidate_id[closest_indices]  # (H, W)
+    return post_id.reshape(orig_shape)
 
 def calc_topk_acc(pred_logits: torch.Tensor, target: torch.Tensor, topk=(1,)):
     """
@@ -717,6 +767,11 @@ def calc_f1(pred: torch.Tensor, target: torch.Tensor, eps=1e-7) -> float:
 
     classes = torch.unique(torch.cat((pred, target)))
     classes = classes[classes != 0]
+    
+    # If no valid classes found, return 0.0
+    if len(classes) == 0:
+        return 0.0
+    
     f1_per_class = []
 
     # Compute F1-score per class
@@ -735,6 +790,10 @@ def calc_f1(pred: torch.Tensor, target: torch.Tensor, eps=1e-7) -> float:
 
         f1 = 2 * precision * recall / (precision + recall + eps)
         f1_per_class.append(f1)
+
+    # If no valid F1 values, return 0.0
+    if len(f1_per_class) == 0:
+        return 0.0
 
     # Compute mean F1-score across classes excluding class 0
     average_f1s = torch.stack(f1_per_class)

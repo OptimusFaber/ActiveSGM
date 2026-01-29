@@ -1158,7 +1158,7 @@ class SplatamOurs(SlamModel):
         results_dir = os.path.join(self.results_dir, eval_dir_suffix) if eval_dir_suffix else self.results_dir
         save_params(params, results_dir)
 
-    def eval_result(self, eval_dir_suffix="", ignore_first_frame = False, save_frames=False):
+    def eval_result(self, eval_dir_suffix="", ignore_first_frame = False, save_frames=False, max_frames=None):
         """ evaluate rendering results
             
         """
@@ -1169,7 +1169,14 @@ class SplatamOurs(SlamModel):
             wandb_run = self.wandb_run
         # dataset = self.dataset_sample
         dataset = self.dataset_eval
-        num_frames = self.num_frames
+        # If max_frames is None, use all frames in dataset
+        # Otherwise, use min of max_frames, self.num_frames, and dataset length
+        if max_frames is None:
+            num_frames = len(dataset)  # Use all frames
+        else:
+            num_frames = self.num_frames
+            num_frames = min(int(max_frames), num_frames)
+            num_frames = min(num_frames, len(dataset))
         # eval_dir = self.eval_dir
         eval_dir = self.eval_dir + "_" + eval_dir_suffix if eval_dir_suffix else self.eval_dir
 

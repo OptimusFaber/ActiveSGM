@@ -214,6 +214,42 @@ if __name__ == "__main__":
             elif planner.planning_state == "done":
                 break
 
+            ##################################################
+            ### Validation during training
+            ##################################################
+            if hasattr(main_cfg.slam, 'eval_during_training') and main_cfg.slam.eval_during_training:
+                eval_freq = getattr(main_cfg.slam, 'eval_during_training_freq', 100)
+                if (i + 1) % eval_freq == 0 or i == 0:
+                    info_printer(f"Running validation at step {i+1}...", i+1, "Validation")
+                    timer.start("Validation", "General")
+                    try:
+                        # Get dataset length for full evaluation
+                        dataset_len = len(slam.dataset_eval)
+                        user_max = getattr(main_cfg.slam, 'eval_during_training_max_frames', None)
+                        
+                        # If user_max is None or >= dataset length, use all frames
+                        # Otherwise, use min of processed frames and user_max
+                        if user_max is None or int(user_max) >= dataset_len or int(user_max) == -1:
+                            # Use all frames for evaluation
+                            max_frames = None  # None means use all frames in eval_result
+                            info_printer(f"Evaluating on all {dataset_len} frames", i+1, "Validation")
+                        else:
+                            # Limit to processed frames or user_max, whichever is smaller
+                            max_frames = min(i + 1, int(user_max))
+                            info_printer(f"Evaluating on {max_frames} frames (limited)", i+1, "Validation")
+                        
+                        slam.eval_result(
+                            eval_dir_suffix=f"step_{i+1:04d}",
+                            ignore_first_frame=True,
+                            save_frames=False,
+                            max_frames=max_frames,
+                        )
+                        info_printer(f"Validation completed at step {i+1}", i+1, "Validation")
+                    except Exception as e:
+                        info_printer(f"Validation failed at step {i+1}: {str(e)}", i+1, "Validation")
+                        print(f"Warning: Validation error: {e}")
+                    timer.end("Validation")
+
             ### store data for visualization ###
             # if planner.state == "planning" and "exploration" in planner.planning_state:
             #     ### save params and render result ###

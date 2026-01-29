@@ -1187,7 +1187,27 @@ class ActiveGSPlannerv2(NarutoPlanner):
                 if self.exploration_stage < self.num_exploration_stage:
                     self.info_printer(f"Current state: {self.state} | {self.planning_state}: Done Exploration Stage - {self.exploration_stage} , starting evaluation...", self.step, self.__class__.__name__)
                     eval_dir_suffix = f"exploration_stage_{self.exploration_stage}"
-                    self.gs_slam.print_and_save_result(eval_dir_suffix, is_prune_gaussians=False, ignore_first_frame=True)
+                    # Get dataset length for full evaluation
+                    dataset_len = len(self.gs_slam.dataset_eval)
+                    user_max = getattr(self.main_cfg.slam, "eval_during_training_max_frames", None)
+                    
+                    # If user_max is None or >= dataset length, use all frames
+                    # Otherwise, use min of processed frames and user_max
+                    if user_max is None or int(user_max) >= dataset_len or int(user_max) == -1:
+                        # Use all frames for evaluation
+                        max_frames = None  # None means use all frames in eval_result
+                        self.info_printer(f"Evaluating on all {dataset_len} frames", self.step, self.__class__.__name__)
+                    else:
+                        # Limit to processed frames or user_max, whichever is smaller
+                        max_frames = min(self.step + 1, int(user_max))
+                        self.info_printer(f"Evaluating on {max_frames} frames (limited)", self.step, self.__class__.__name__)
+                    
+                    self.gs_slam.eval_result(
+                        eval_dir_suffix=eval_dir_suffix,
+                        ignore_first_frame=True,
+                        save_frames=False,
+                        max_frames=max_frames,
+                    )
                     ### save step  ###
                     eval_dir = self.gs_slam.eval_dir + "_" + eval_dir_suffix
                     os.makedirs(eval_dir, exist_ok=True)
