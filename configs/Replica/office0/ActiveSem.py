@@ -14,7 +14,7 @@ with read_base():
 general = dict(
     dataset = "Replica",
     scene = "office0",
-    num_iter = 500,
+    num_iter = 2000,
     device = 'cuda'
 )
 
@@ -54,6 +54,11 @@ if slam["method"] == "semsplatam":
         enable_active_planning = True,                             # enable/disable active planning
         # dataset_eval_basedir = "data/replica_sim_nvs",
         dataset_eval_basedir="data/Replica",
+        
+        ### Validation during training ###
+        eval_during_training = True,                               # enable/disable validation during training
+        eval_during_training_freq = 200,                          # evaluate every N iterations during training
+        eval_during_training_max_frames = None,                   # max frames to evaluate during training (None or -1 = all frames, set to number to limit processed frames)
 
         ### bounding box ###
         # bbox_bound = [[-2.2,2.6],[-3.4,2.1],[-1.4,2.0]],
