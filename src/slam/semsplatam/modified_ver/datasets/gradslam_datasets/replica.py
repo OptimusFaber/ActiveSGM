@@ -104,7 +104,17 @@ class ReplicaDataset(GradSLAMDataset):
         return semantic_map
 
     def get_semantic_map(self,index):
-        semantic_path = self.semantic_paths[index]
+        # Handle case when semantic_paths is shorter than dataset length
+        # Use the last available semantic map if index is out of range
+        if self.semantic_paths is None or len(self.semantic_paths) == 0:
+            raise ValueError("Semantic paths are not loaded. Set load_semantics=True in dataset config.")
+        
+        if index >= len(self.semantic_paths):
+            # Use the last available semantic map
+            semantic_path = self.semantic_paths[-1]
+        else:
+            semantic_path = self.semantic_paths[index]
+        
         semantics = self.read_semantic_from_file(semantic_path)
         semantics = torch.from_numpy(semantics)
         return semantics.to(self.device).type(self.dtype),

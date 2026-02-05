@@ -1065,6 +1065,18 @@ class SemSplatam(SplatamOurs):
                     keyframe_list.append(curr_keyframe)
                     keyframe_time_indices.append(time_idx)
         
+        # Save RGB images of keyframes (only when new keyframe is added)
+        if not(dont_add_kf) and ((time_idx == 0) or ((time_idx+1) % config['keyframe_every'] == 0) or \
+                    (time_idx == num_frames-2)) and (not torch.isinf(curr_gt_w2c[-1]).any()) and (not torch.isnan(curr_gt_w2c[-1]).any()) or force_map_update:
+            import cv2
+            keyframes_dir = os.path.join(self.results_dir, "keyframes")
+            os.makedirs(keyframes_dir, exist_ok=True)
+            # Convert color from (C, H, W) to (H, W, C) and save as image
+            color_np = color.permute(1, 2, 0).detach().cpu().numpy()  # (H, W, 3)
+            color_np = (color_np * 255).astype(np.uint8)  # Convert to uint8
+            color_bgr = cv2.cvtColor(color_np, cv2.COLOR_RGB2BGR)  # OpenCV uses BGR
+            cv2.imwrite(os.path.join(keyframes_dir, f"keyframe_{time_idx:04d}.jpg"), color_bgr)
+        
         # Checkpoint every iteration
         if time_idx % config["checkpoint_interval"] == 0 and config['save_checkpoints']:
             ckpt_output_dir = os.path.join(config["workdir"], config["run_name"])
@@ -1170,21 +1182,42 @@ class SemSplatam(SplatamOurs):
                     mapping_iters=config['mapping']['num_iters'], add_new_gaussians=config['mapping']['add_new_gaussians'],
                     eval_every=config['eval_every'],
                     ignore_first_frame=ignore_first_frame)
-                eval_semantic(self,dataset, params,variables, len(dataset), eval_dir, sil_thres=config['mapping']['sil_thres'],
-                    wandb_run=wandb_run, wandb_save_qual=config['wandb']['eval_save_qual'],
-                    mapping_iters=config['mapping']['num_iters'], add_new_gaussians=config['mapping']['add_new_gaussians'],
-                    eval_every=config['eval_every'],
-                    ignore_first_frame=ignore_first_frame)
+                try:
+                    eval_semantic(self,dataset, params,variables, len(dataset), eval_dir, sil_thres=config['mapping']['sil_thres'],
+                        wandb_run=wandb_run, wandb_save_qual=config['wandb']['eval_save_qual'],
+                        mapping_iters=config['mapping']['num_iters'], add_new_gaussians=config['mapping']['add_new_gaussians'],
+                        eval_every=config['eval_every'],
+                        ignore_first_frame=ignore_first_frame)
+                except Exception as e:
+                    print(f"Warning: Semantic evaluation failed: {e}")
+                    print("Continuing with parameter saving...")
             else:
                 eval(self,dataset, params,variables, len(dataset), eval_dir,sil_thres=config['mapping']['sil_thres'],
                     mapping_iters=config['mapping']['num_iters'], add_new_gaussians=config['mapping']['add_new_gaussians'],
                     eval_every=config['eval_every'],
                     ignore_first_frame=ignore_first_frame)
-                eval_semantic(self, dataset, params, variables, len(dataset), eval_dir, sil_thres=config['mapping']['sil_thres'],
-                     mapping_iters=config['mapping']['num_iters'],
-                     add_new_gaussians=config['mapping']['add_new_gaussians'],
-                     eval_every=config['eval_every'],
-                     ignore_first_frame=ignore_first_frame)
+                try:
+                    eval_semantic(self, dataset, params, variables, len(dataset), eval_dir, sil_thres=config['mapping']['sil_thres'],
+                         mapping_iters=config['mapping']['num_iters'],
+                         add_new_gaussians=config['mapping']['add_new_gaussians'],
+                         eval_every=config['eval_every'],
+                         ignore_first_frame=ignore_first_frame)
+                except Exception as e:
+                    print(f"Warning: Semantic evaluation failed: {e}")
+                    print("Continuing with parameter saving...")
+
+        # Save all keyframe RGB images at the end
+        import cv2
+        keyframes_dir = os.path.join(self.results_dir, "keyframes")
+        os.makedirs(keyframes_dir, exist_ok=True)
+        keyframe_list = self.keyframe_list
+        for kf in keyframe_list:
+            kf_id = kf['id']
+            kf_color = kf['color']  # (C, H, W)
+            color_np = kf_color.permute(1, 2, 0).detach().cpu().numpy()  # (H, W, 3)
+            color_np = (color_np * 255).astype(np.uint8)
+            color_bgr = cv2.cvtColor(color_np, cv2.COLOR_RGB2BGR)
+            cv2.imwrite(os.path.join(keyframes_dir, f"keyframe_{kf_id:04d}.jpg"), color_bgr)
 
         # Add Camera Parameters to Save them
         params['timestep'] = variables['timestep']
