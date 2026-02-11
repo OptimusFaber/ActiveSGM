@@ -29,14 +29,16 @@ sys.path.append(os.getcwd())
 from tensorboardX import SummaryWriter
 import torch
 import numpy as np
+import json
 
-from src.naruto.cfg_loader import argument_parsing, load_cfg
+from src.naruto.cfg_loader import argument_parsing, load_cfg, save_cfg_to_json
 from src.planner import init_planner
 from src.slam import init_SLAM_model
 from src.simulator import init_simulator
 from src.utils.timer import Timer
 from src.utils.general_utils import fix_random_seed, InfoPrinter, update_module_step
 from src.visualization import init_visualizer
+from src.data.generate_finetune_data_Replica import map_object_id_to_semlabel, semantic_mask_to_rgb
 
 def write_poses_to_file(poses, filename) -> None:
     """
@@ -130,7 +132,7 @@ if __name__ == "__main__":
     args = argument_parsing()
     info_printer("Loading configuration...", 0, "Initialization")
     main_cfg = load_cfg(args)
-    main_cfg.dump(os.path.join(main_cfg.dirs.result_dir, 'main_cfg.json'))
+    save_cfg_to_json(main_cfg, os.path.join(main_cfg.dirs.result_dir, 'main_cfg.json'))
     info_printer.update_total_step(main_cfg.general.num_iter)
     info_printer.update_scene(main_cfg.general.dataset + " - " + main_cfg.general.scene)
 
@@ -151,6 +153,18 @@ if __name__ == "__main__":
     ### initialize simulator
     ##################################################
     sim = init_simulator(main_cfg, info_printer)
+
+    ##################################################
+    ### Load id2label for semantic mapping
+    ##################################################
+    ori_dir = f"./data/replica_v1/{main_cfg.general.scene[:-1]}_{main_cfg.general.scene[-1]}/habitat/"
+    ori_semantic_info_file = os.path.join(ori_dir, 'info_semantic.json')
+    if os.path.exists(ori_semantic_info_file):
+        with open(ori_semantic_info_file, 'r') as file:
+            scene_id2label = json.load(file)['id_to_label']
+    else:
+        print(f"Warning: Semantic info file not found at {ori_semantic_info_file}. Semantic generation will be skipped.")
+        scene_id2label = None
 
     ##################################################
     ### initialize planning module
@@ -197,6 +211,7 @@ if __name__ == "__main__":
 
     new_data_dir = f"data/replica_sim_nvs/{main_cfg.general.scene}/results_habitat"
     os.makedirs(new_data_dir, exist_ok=True)
+    os.makedirs(f'{new_data_dir}/semantic', exist_ok=True)
     nvs_poses_slam = []
     for i in range(len(nvs_poses)):
         update_module_step(i, [sim, planner, visualizer])
@@ -208,27 +223,33 @@ if __name__ == "__main__":
         c2w_sim[:3, 1] *= -1
         c2w_sim[:3, 2] *= -1 # RUB
 
-        c2w_slam = planner.pose_conversion_sim2slam(torch.from_numpy(c2w_sim).float().cuda()).detach().cpu().numpy()
-        # c2w_slam = nvs_poses[i]
-        c2w_slam = torch.inverse(T_sim2slam.cpu()) @ c2w_slam
-        nvs_poses_slam.append(c2w_slam.detach().cpu().numpy())
-
         ##################################################
         ### Simulation
         ##################################################
         timer.start("Simulation", "General")
-        sim_out = sim.simulate(c2w_sim)
+        sim_out = sim.simulate(c2w_sim, return_semantic=True)
         color = sim_out['color']
         depth = sim_out['depth']
         is_too_close = (depth < 0.2).sum() / (depth.shape[0] * depth.shape[1]) > 0.1
-        assert not(is_too_close), "Too many close-camera regions"
+        if is_too_close:
+            print(f"Warning: Frame {i} skipped - too many close-camera regions (>10% pixels < 0.2m)")
+            timer.end("Simulation")
+            continue
         if main_cfg.visualizer.vis_rgbd:
             visualizer.visualize_rgbd(color, depth, main_cfg.visualizer.vis_rgbd_max_depth)
         timer.end("Simulation")
         
-        # ##################################################
-        # ### save data
-        # ##################################################
+        ##################################################
+        ### transform pose and add to trajectory
+        ##################################################
+        c2w_slam = planner.pose_conversion_sim2slam(torch.from_numpy(c2w_sim).float().cuda()).detach().cpu().numpy()
+        # c2w_slam = nvs_poses[i]
+        c2w_slam = torch.inverse(T_sim2slam.cpu()) @ c2w_slam
+        nvs_poses_slam.append(c2w_slam.detach().cpu().numpy())
+        
+        ##################################################
+        ### save data
+        ##################################################
 
         ### Save Depth ###
         depth_png_scale = 6553.5
@@ -236,11 +257,19 @@ if __name__ == "__main__":
         depth = np.clip((depth.detach().cpu().numpy() * depth_png_scale), 0, 65535).astype(np.uint16)
         cv2.imwrite(img_path, depth)
 
-        ### Save Depth ###
+        ### Save RGB ###
         img_path = os.path.join(new_data_dir, 'frame{:06}.jpg'.format(i))
         color = (color.cpu().numpy()*255).astype(np.uint8)
         color = cv2.cvtColor(color, cv2.COLOR_RGB2BGR)
         cv2.imwrite(img_path, color)
+
+        ### Save Semantic ###
+        if scene_id2label is not None and 'seman' in sim_out:
+            seman = sim_out['seman'].long()
+            seman = map_object_id_to_semlabel(object_ids=sim_out['seman'], id2label=scene_id2label)
+            np.save(f"{new_data_dir}/semantic/semantic_map_{i:04d}.npy", seman.numpy())
+            seman[seman < 0] = 0
+            semantic_mask_to_rgb(seman, f"{new_data_dir}/semantic/semantic_rgb_{i:04d}.png", num_classes=102)
 
     ### Save pose ###
     write_poses_to_file(nvs_poses_slam, os.path.join(new_data_dir, "../traj.txt"))
