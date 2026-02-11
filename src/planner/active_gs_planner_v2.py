@@ -612,28 +612,28 @@ class ActiveGSPlannerv2(NarutoPlanner):
         target_reachable = self.local_planner.run(use_free_space=True)
 
         if not(target_reachable):
-            # Fallback: используем прямой путь вместо ошибки
+            # Fallback: use direct path instead of error
             print(f"⚠️  RRT: Target not reachable. Using direct path as fallback.")
             print(f"    Start voxel: {cur_vxl}")
             print(f"    Goal voxel:  {goal_vxl}")
             
-            # Создаём простой прямой путь с несколькими промежуточными точками в voxel space
+            # Create simple direct path with several intermediate points in voxel space
             num_waypoints = 5
             path_points = []
             for i in range(num_waypoints + 1):
                 t = i / num_waypoints
-                # Интерполяция в voxel space (НЕ умножаем на voxel_size здесь!)
+                # Interpolation in voxel space (DO NOT multiply by voxel_size here!)
                 waypoint_vxl = cur_vxl * (1 - t) + goal_vxl * t
                 path_points.append(waypoint_vxl)
             
-            # Convert to numpy array (будет умножен на voxel_size в path_planning)
+            # Convert to numpy array (will be multiplied by voxel_size in path_planning)
             path = np.array(path_points)
             return path
 
         ### find path ###
         path = self.local_planner.find_path()
         path = [i.get_xyz() for i in path[::-1]]
-        # Convert to numpy array (будет конвертирован в torch в path_planning)
+        # Convert to numpy array (will be converted to torch in path_planning)
         path_np = []
         for p in path:
             if isinstance(p, torch.Tensor):

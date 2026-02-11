@@ -1,6 +1,6 @@
 """
-Скрипт для визуализации keyframes, найденных роботом во время обучения.
-Сохраняет RGB изображения keyframes и информацию о них.
+Script for visualizing keyframes found by the robot during training.
+Saves RGB images of keyframes and information about them.
 """
 
 import os
@@ -15,13 +15,13 @@ from tqdm import tqdm
 
 def load_keyframes_from_checkpoint(checkpoint_dir):
     """
-    Загружает keyframes из checkpoint директории.
+    Loads keyframes from checkpoint directory.
     
     Args:
-        checkpoint_dir: Путь к директории с результатами (например, results/Replica/office0/ActiveSem/run_0)
+        checkpoint_dir: Path to results directory (e.g., results/Replica/office0/ActiveSem/run_0)
     
     Returns:
-        keyframe_info: dict с информацией о keyframes
+        keyframe_info: dict with keyframe information
     """
     keyframe_info = {
         'keyframe_time_indices': [],
@@ -29,49 +29,49 @@ def load_keyframes_from_checkpoint(checkpoint_dir):
         'global_keyframe_indices': [],
     }
     
-    # Ищем сохраненные keyframe indices
+    # Search for saved keyframe indices
     checkpoint_files = list(Path(checkpoint_dir).glob("**/keyframe_time_indices*.npy"))
     if checkpoint_files:
-        # Берем последний checkpoint
+        # Get latest checkpoint
         latest_checkpoint = max(checkpoint_files, key=lambda x: x.stat().st_mtime)
         keyframe_indices = np.load(latest_checkpoint)
         keyframe_info['keyframe_time_indices'] = keyframe_indices.tolist()
-        print(f"Загружено {len(keyframe_indices)} keyframes из {latest_checkpoint}")
+        print(f"Loaded {len(keyframe_indices)} keyframes from {latest_checkpoint}")
     
-    # Ищем global keyframes (если сохранены отдельно)
+    # Search for global keyframes (if saved separately)
     global_kf_files = list(Path(checkpoint_dir).glob("**/global_keyframe_time_indices*.npy"))
     if global_kf_files:
         latest_global = max(global_kf_files, key=lambda x: x.stat().st_mtime)
         global_indices = np.load(latest_global)
         keyframe_info['global_keyframe_indices'] = global_indices.tolist()
-        print(f"Загружено {len(global_indices)} global keyframes из {latest_global}")
+        print(f"Loaded {len(global_indices)} global keyframes from {latest_global}")
     
     return keyframe_info
 
 
 def load_keyframes_from_dataset(dataset_dir, keyframe_indices):
     """
-    Загружает RGB изображения keyframes из датасета.
+    Loads RGB images of keyframes from dataset.
     
     Args:
-        dataset_dir: Путь к директории с данными (data/Replica/office0)
-        keyframe_indices: Список индексов keyframes
+        dataset_dir: Path to data directory (data/Replica/office0)
+        keyframe_indices: List of keyframe indices
     
     Returns:
-        keyframes: dict с RGB изображениями
+        keyframes: dict with RGB images
     """
     keyframes = {}
     results_dir = os.path.join(dataset_dir, "results_habitat")
     
     if not os.path.exists(results_dir):
-        print(f"Директория {results_dir} не найдена!")
+        print(f"Directory {results_dir} not found!")
         return keyframes
     
-    # Находим все RGB изображения
+    # Find all RGB images
     rgb_files = sorted([f for f in os.listdir(results_dir) if f.startswith("frame") and f.endswith(".jpg")])
     
-    print(f"Найдено {len(rgb_files)} RGB изображений в {results_dir}")
-    print(f"Загружаем {len(keyframe_indices)} keyframes...")
+    print(f"Found {len(rgb_files)} RGB images in {results_dir}")
+    print(f"Loading {len(keyframe_indices)} keyframes...")
     
     for idx in tqdm(keyframe_indices):
         if idx < len(rgb_files):
@@ -85,50 +85,50 @@ def load_keyframes_from_dataset(dataset_dir, keyframe_indices):
                         'filename': rgb_files[idx]
                     }
         else:
-            print(f"Предупреждение: индекс {idx} выходит за пределы доступных изображений ({len(rgb_files)})")
+            print(f"Warning: index {idx} is out of bounds for available images ({len(rgb_files)})")
     
     return keyframes
 
 
 def visualize_keyframes(keyframes, output_dir, keyframe_info, dataset_name="Replica", scene_name="office0"):
     """
-    Визуализирует keyframes и сохраняет их в выходную директорию.
+    Visualizes keyframes and saves them to output directory.
     
     Args:
-        keyframes: dict с RGB изображениями keyframes
-        output_dir: Директория для сохранения результатов
-        keyframe_info: dict с информацией о keyframes
-        dataset_name: Название датасета
-        scene_name: Название сцены
+        keyframes: dict with RGB images of keyframes
+        output_dir: Directory to save results
+        keyframe_info: dict with keyframe information
+        dataset_name: Dataset name
+        scene_name: Scene name
     """
     os.makedirs(output_dir, exist_ok=True)
     
-    # Создаем поддиректории
+    # Create subdirectories
     rgb_dir = os.path.join(output_dir, "keyframes_rgb")
     os.makedirs(rgb_dir, exist_ok=True)
     
-    # Сохраняем RGB изображения keyframes
-    print(f"\nСохраняем {len(keyframes)} keyframes в {rgb_dir}...")
+    # Save RGB images of keyframes
+    print(f"\nSaving {len(keyframes)} keyframes to {rgb_dir}...")
     for idx, kf_data in tqdm(keyframes.items()):
         output_path = os.path.join(rgb_dir, f"keyframe_{idx:04d}.jpg")
         cv2.imwrite(output_path, kf_data['rgb'])
     
-    # Создаем HTML визуализацию
+    # Create HTML visualization
     html_path = os.path.join(output_dir, "keyframes_visualization.html")
     create_html_visualization(keyframes, html_path, keyframe_info, dataset_name, scene_name)
     
-    # Сохраняем JSON с информацией
+    # Save JSON with information
     json_path = os.path.join(output_dir, "keyframes_info.json")
     save_keyframes_info(keyframes, json_path, keyframe_info, dataset_name, scene_name)
     
-    print(f"\nВизуализация сохранена в {output_dir}")
-    print(f"  - RGB изображения: {rgb_dir}")
-    print(f"  - HTML визуализация: {html_path}")
-    print(f"  - JSON информация: {json_path}")
+    print(f"\nVisualization saved to {output_dir}")
+    print(f"  - RGB images: {rgb_dir}")
+    print(f"  - HTML visualization: {html_path}")
+    print(f"  - JSON information: {json_path}")
 
 
 def create_html_visualization(keyframes, output_path, keyframe_info, dataset_name, scene_name):
-    """Создает HTML файл для визуализации keyframes в браузере."""
+    """Creates HTML file for visualizing keyframes in browser."""
     html_content = f"""
 <!DOCTYPE html>
 <html>
@@ -196,7 +196,7 @@ def create_html_visualization(keyframes, output_path, keyframe_info, dataset_nam
         global_class = "global-keyframe" if is_global else ""
         global_label = " (Global)" if is_global else ""
         
-        # Относительный путь к изображению
+        # Relative path to image
         img_rel_path = f"keyframes_rgb/keyframe_{idx:04d}.jpg"
         
         html_content += f"""
@@ -217,7 +217,7 @@ def create_html_visualization(keyframes, output_path, keyframe_info, dataset_nam
 
 
 def save_keyframes_info(keyframes, output_path, keyframe_info, dataset_name, scene_name):
-    """Сохраняет информацию о keyframes в JSON."""
+    """Saves keyframe information to JSON."""
     info = {
         'dataset': dataset_name,
         'scene': scene_name,
@@ -239,66 +239,61 @@ def save_keyframes_info(keyframes, output_path, keyframe_info, dataset_name, sce
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Визуализация keyframes из результатов обучения')
+    parser = argparse.ArgumentParser(description='Visualize keyframes from training results')
     parser.add_argument('--result_dir', type=str, required=True,
-                        help='Путь к директории с результатами (например, results/Replica/office0/ActiveSem/run_0)')
+                        help='Path to results directory (e.g., results/Replica/office0/ActiveSem/run_0)')
     parser.add_argument('--dataset_dir', type=str, 
                         default=None,
-                        help='Путь к директории с данными (например, data/Replica/office0). Если не указан, будет выведен из result_dir')
+                        help='Path to data directory (e.g., data/Replica/office0). If not specified, will be inferred from result_dir')
     parser.add_argument('--output_dir', type=str, default=None,
-                        help='Директория для сохранения визуализации (по умолчанию: result_dir/debug_keyframes)')
+                        help='Directory to save visualization (default: result_dir/debug_keyframes)')
     
     args = parser.parse_args()
     
-    # Определяем dataset_dir если не указан
+    # Determine dataset_dir if not specified
     if args.dataset_dir is None:
-        # Пытаемся определить из result_dir
+        # Try to infer from result_dir
         result_path = Path(args.result_dir)
         scene_name = result_path.parent.name
         dataset_name = result_path.parent.parent.name
         args.dataset_dir = f"data/{dataset_name}/{scene_name}"
-        print(f"Автоматически определен dataset_dir: {args.dataset_dir}")
+        print(f"Auto-detected dataset_dir: {args.dataset_dir}")
     
-    # Определяем output_dir если не указан
+    # Determine output_dir if not specified
     if args.output_dir is None:
         args.output_dir = os.path.join(args.result_dir, "debug_keyframes")
     
-    # Загружаем информацию о keyframes
-    print("Загрузка информации о keyframes...")
+    # Load keyframe information
+    print("Loading keyframe information...")
     keyframe_info = load_keyframes_from_checkpoint(args.result_dir)
     
     if not keyframe_info['keyframe_time_indices']:
-        print("Предупреждение: keyframe indices не найдены в checkpoint. Попробуем загрузить из params.npz...")
-        # Попробуем загрузить из params.npz если есть
+        print("Warning: keyframe indices not found in checkpoint. Trying to load from params.npz...")
+        # Try to load from params.npz if available
         params_files = list(Path(args.result_dir).glob("**/params.npz"))
         if params_files:
-            print("Найдены params.npz файлы, но keyframe indices должны быть сохранены отдельно.")
-            print("Попробуйте запустить обучение с save_checkpoints=True для сохранения keyframes.")
+            print("Found params.npz files, but keyframe indices should be saved separately.")
+            print("Try running training with save_checkpoints=True to save keyframes.")
             return
         else:
-            print("Не удалось найти информацию о keyframes. Выход.")
+            print("Failed to find keyframe information. Exiting.")
             return
     
-    # Загружаем RGB изображения keyframes
-    print(f"\nЗагрузка RGB изображений из {args.dataset_dir}...")
+    # Load RGB images of keyframes
+    print(f"\nLoading RGB images from {args.dataset_dir}...")
     keyframes = load_keyframes_from_dataset(args.dataset_dir, keyframe_info['keyframe_time_indices'])
     
     if not keyframes:
-        print("Не удалось загрузить keyframes. Проверьте путь к dataset_dir.")
+        print("Failed to load keyframes. Check dataset_dir path.")
         return
     
-    # Визуализируем
+    # Visualize
     scene_name = Path(args.dataset_dir).name
     dataset_name = Path(args.dataset_dir).parent.name
     visualize_keyframes(keyframes, args.output_dir, keyframe_info, dataset_name, scene_name)
     
-    print("\nГотово!")
+    print("\nDone!")
 
 
 if __name__ == "__main__":
     main()
-
-
-
-
-

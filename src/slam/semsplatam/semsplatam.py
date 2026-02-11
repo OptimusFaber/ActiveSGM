@@ -474,7 +474,7 @@ class SemSplatam(SplatamOurs):
         Returns:
         '''
         if time_idx == 0:
-            # Используем данные из симулятора для инициализации
+            # Use simulator data for initialization
             self.init_camera_parameters_from_simulator(color, depth, c2w)
 
         seg_img = color.clone().to(self.semantic_device)
