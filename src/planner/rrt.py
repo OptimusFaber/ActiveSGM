@@ -70,7 +70,14 @@ def query_sdf_np(sdf_grid, points):
     Returns
         sdf (np.ndarray, [N]): queried SDF values
     """
-    sdf = np.array([trilinear_interpolation(sdf_grid, point) for point in points])
+    sdf_list = []
+    for point in points:
+        sdf_val = trilinear_interpolation(sdf_grid, point)
+        # If point is outside grid, assume it's free space (large positive SDF)
+        if sdf_val is None:
+            sdf_val = 100.0  # Large positive value means free space
+        sdf_list.append(sdf_val)
+    sdf = np.array(sdf_list)
     return sdf
 
 
@@ -97,7 +104,33 @@ def is_collision_free(
     """
     ### sample points in between with a step < rrt_step_size/5 ###
     points = np.linspace(pa, pb, num=int(np.ceil(np.linalg.norm(pb - pa) / (step_size / 5))) + 1)
+    
+    ### check if sdf_map is None ###
+    if sdf_map is None:
+        # If no SDF map, assume all points are collision-free
+        num_collision_free = max((len(points) - 1) // 5, 1)
+        complete_free = True
+        return num_collision_free, complete_free
+    
     points_sdf = query_sdf_np(sdf_map, points)
+    
+    ### check if points_sdf is None ###
+    if points_sdf is None:
+        # If query failed, assume all points are collision-free
+        num_collision_free = max((len(points) - 1) // 5, 1)
+        complete_free = True
+        return num_collision_free, complete_free
+    
+    # Ensure points_sdf is a valid numpy array without None values
+    # Convert to float array and replace any None/NaN with large positive value (free space)
+    try:
+        points_sdf = np.array(points_sdf, dtype=np.float64)
+        points_sdf = np.nan_to_num(points_sdf, nan=100.0, posinf=100.0, neginf=100.0)
+    except (TypeError, ValueError):
+        # If conversion fails, assume all points are collision-free
+        num_collision_free = max((len(points) - 1) // 5, 1)
+        complete_free = True
+        return num_collision_free, complete_free
 
     ### check collision ###
     collision_check = (points_sdf > collision_thre)

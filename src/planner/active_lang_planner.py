@@ -113,10 +113,10 @@ class ActiveLangPlanner(NarutoPlanner):
         self.view_rot_idx = []
         for i in range(self.num_exploration_stage):
             self.view_rot_samples.append(self.generate_rotation_samples(
-                torch.from_numpy(self.planner_cfg.up_dir).to(self.device).float(),
+                torch.from_numpy(np.array(self.planner_cfg.up_dir)).to(self.device).float(),
                 self.num_dir_samples[i],
             )) # 1, K, 4, 4
-            self.view_rot_idx.append(torch.range(0, self.num_dir_samples[i]-1).unsqueeze(0).unsqueeze(2).to(self.device))
+            self.view_rot_idx.append(torch.arange(0, self.num_dir_samples[i]).unsqueeze(0).unsqueeze(2).to(self.device))
 
     def generate_circular_trajectory(self, radius: float, delta: float, steps: int) -> torch.Tensor:
         """
@@ -269,7 +269,7 @@ class ActiveLangPlanner(NarutoPlanner):
             raise NotImplementedError
         self.sim2slam = sim2slam
 
-        up_dir_sim = torch.from_numpy(self.planner_cfg.up_dir).float().to(self.sim2slam.device).unsqueeze(1)
+        up_dir_sim = torch.from_numpy(np.array(self.planner_cfg.up_dir)).float().to(self.sim2slam.device).unsqueeze(1)
         self.up_dir_slam = (self.sim2slam[:3, :3] @ up_dir_sim)[:, 0].cpu().numpy()
 
         # self.voxel_size = self.main_cfg.planner.voxel_size 
@@ -1047,8 +1047,15 @@ class ActiveLangPlanner(NarutoPlanner):
                         save_frames=False,
                         max_frames=max_frames,
                     )
+                    # Save parameters for exploration stage (after evaluation, doesn't affect training)
+                    self.gs_slam.print_and_save_result(
+                        eval_dir_suffix=eval_dir_suffix,
+                        is_prune_gaussians=False,
+                        ignore_first_frame=True,
+                    )
                     ### save step  ###
                     eval_dir = self.gs_slam.eval_dir + "_" + eval_dir_suffix
+                    os.makedirs(eval_dir, exist_ok=True)
                     with open(os.path.join(eval_dir, "exploration_info.txt"), 'w') as f:
                         line = f"exploration_stage_{self.exploration_stage}_step: {self.step}\n"
                         f.writelines(line)

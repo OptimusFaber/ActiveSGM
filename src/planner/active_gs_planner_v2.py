@@ -1208,6 +1208,12 @@ class ActiveGSPlannerv2(NarutoPlanner):
                         save_frames=False,
                         max_frames=max_frames,
                     )
+                    # Save parameters for exploration stage (after evaluation, doesn't affect training)
+                    self.gs_slam.print_and_save_result(
+                        eval_dir_suffix=eval_dir_suffix,
+                        is_prune_gaussians=False,
+                        ignore_first_frame=True,
+                    )
                     ### save step  ###
                     eval_dir = self.gs_slam.eval_dir + "_" + eval_dir_suffix
                     os.makedirs(eval_dir, exist_ok=True)
