@@ -334,9 +334,15 @@ def eval(dataset, final_params, num_frames, eval_dir, sil_thres,
         if wandb_run is not None:
             wandb_run.log({"Final Stats/Avg ATE RMSE": ate_rmse,
                         "Final Stats/step": 1})
-    except:
+    except Exception as e:
         ate_rmse = 100.0
-        print('Failed to evaluate trajectory with alignment.')
+        error_msg = str(e)
+        if "insufficient" in error_msg.lower() or "mismatch" in error_msg.lower():
+            print(f'Failed to evaluate trajectory with alignment: {error_msg}')
+        else:
+            print(f'Failed to evaluate trajectory with alignment: {error_msg}')
+            import traceback
+            print(f'Traceback: {traceback.format_exc()}')
     
     # Compute Average Metrics
     if len(psnr_list) == 0:

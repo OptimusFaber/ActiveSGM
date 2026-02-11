@@ -1223,7 +1223,9 @@ class SplatamOurs(SlamModel):
         """
         ### override from main_cfg ###
         config["data"]["sequence"] = self.main_cfg.general.scene
-        config["workdir"] = os.path.join(self.main_cfg.dirs.result_dir, "splatam")
+        # Normalize path to avoid double slashes
+        result_dir = os.path.normpath(self.main_cfg.dirs.result_dir)
+        config["workdir"] = os.path.join(result_dir, "splatam")
         config["run_name"] = ""
         if self.main_cfg.general.dataset == 'Replica':
             config["data"]['gradslam_data_cfg'] = os.path.join("third_parties/splatam", config["data"]['gradslam_data_cfg'])

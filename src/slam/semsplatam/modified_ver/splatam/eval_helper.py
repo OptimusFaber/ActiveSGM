@@ -281,33 +281,51 @@ def eval(slam_model, dataset, final_params, final_variables, num_frames, eval_di
         # Compute the final ATE RMSE
         # Get the final camera trajectory
         num_frames = final_params['cam_unnorm_rots'].shape[-1]
-        latest_est_w2c = first_frame_w2c
-        latest_est_w2c_list = []
-        latest_est_w2c_list.append(latest_est_w2c)
-        valid_gt_w2c_list = []
-        valid_gt_w2c_list.append(gt_w2c_list[0])
-        for idx in range(1, num_frames):
-            # Check if gt pose is not nan for this time step
-            if torch.isnan(gt_w2c_list[idx]).sum() > 0:
-                continue
-            interm_cam_rot = F.normalize(final_params['cam_unnorm_rots'][..., idx].detach())
-            interm_cam_trans = final_params['cam_trans'][..., idx].detach()
-            intermrel_w2c = torch.eye(4).cuda().float()
-            intermrel_w2c[:3, :3] = build_rotation(interm_cam_rot)
-            intermrel_w2c[:3, 3] = interm_cam_trans
-            latest_est_w2c = intermrel_w2c
+        
+        # Skip ATE evaluation if we don't have enough frames (need at least 2 for trajectory)
+        if num_frames < 2 or len(gt_w2c_list) < 2:
+            print('Skipping trajectory alignment evaluation: insufficient frames (need at least 2).')
+        else:
+            latest_est_w2c = first_frame_w2c
+            latest_est_w2c_list = []
             latest_est_w2c_list.append(latest_est_w2c)
-            valid_gt_w2c_list.append(gt_w2c_list[idx])
-        gt_w2c_list = valid_gt_w2c_list
-        # Calculate ATE RMSE
-        ate_rmse = evaluate_ate(gt_w2c_list, latest_est_w2c_list)
-        print("Final Average ATE RMSE: {:.2f} cm".format(ate_rmse*100))
-        if wandb_run is not None:
-            wandb_run.log({"Final Stats/Avg ATE RMSE": ate_rmse,
-                        "Final Stats/step": 1})
-    except:
+            valid_gt_w2c_list = []
+            valid_gt_w2c_list.append(gt_w2c_list[0])
+            for idx in range(1, min(num_frames, len(gt_w2c_list))):
+                # Check if gt pose is not nan for this time step
+                if torch.isnan(gt_w2c_list[idx]).sum() > 0:
+                    continue
+                interm_cam_rot = F.normalize(final_params['cam_unnorm_rots'][..., idx].detach())
+                interm_cam_trans = final_params['cam_trans'][..., idx].detach()
+                intermrel_w2c = torch.eye(4).cuda().float()
+                intermrel_w2c[:3, :3] = build_rotation(interm_cam_rot)
+                intermrel_w2c[:3, 3] = interm_cam_trans
+                latest_est_w2c = intermrel_w2c
+                latest_est_w2c_list.append(latest_est_w2c)
+                valid_gt_w2c_list.append(gt_w2c_list[idx])
+            
+            # Check if we have enough valid poses for ATE evaluation
+            if len(valid_gt_w2c_list) < 2 or len(latest_est_w2c_list) < 2:
+                print('Skipping trajectory alignment evaluation: insufficient valid poses (need at least 2).')
+            elif len(valid_gt_w2c_list) != len(latest_est_w2c_list):
+                print(f'Skipping trajectory alignment evaluation: pose count mismatch (GT: {len(valid_gt_w2c_list)}, Est: {len(latest_est_w2c_list)}).')
+            else:
+                gt_w2c_list = valid_gt_w2c_list
+                # Calculate ATE RMSE
+                ate_rmse = evaluate_ate(gt_w2c_list, latest_est_w2c_list)
+                print("Final Average ATE RMSE: {:.2f} cm".format(ate_rmse*100))
+                if wandb_run is not None:
+                    wandb_run.log({"Final Stats/Avg ATE RMSE": ate_rmse,
+                                "Final Stats/step": 1})
+    except Exception as e:
         ate_rmse = 100.0
-        print('Failed to evaluate trajectory with alignment.')
+        error_msg = str(e)
+        if "insufficient" in error_msg.lower() or "mismatch" in error_msg.lower():
+            print(f'Failed to evaluate trajectory with alignment: {error_msg}')
+        else:
+            print(f'Failed to evaluate trajectory with alignment: {error_msg}')
+            import traceback
+            print(f'Traceback: {traceback.format_exc()}')
     
     # Compute Average Metrics
     if len(psnr_list) == 0:

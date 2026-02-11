@@ -54,7 +54,16 @@ class SGSSLAMOurs(SplatamOurs):
         ### load eval dataset with semantic
         self.load_eval_dataset_with_semantic()
         ### loading in segmantation network and Langeuage encoder ###
-        self.semantic_device = self.slam_cfg['semantic_device']
+        # Check if semantic_device is available, fallback to primary device if not
+        semantic_device_str = self.slam_cfg['semantic_device']
+        try:
+            semantic_device = torch.device(semantic_device_str)
+            # Try to create a tensor on the device to verify it's available
+            test_tensor = torch.zeros(1).to(semantic_device)
+            self.semantic_device = semantic_device_str
+        except (RuntimeError, AssertionError) as e:
+            print(f"Warning: Semantic device {semantic_device_str} is not available. Falling back to {self.device}.")
+            self.semantic_device = str(self.device)
         self.oneformer_processor = AutoProcessor.from_pretrained(self.slam_cfg['ade20k_checkpoint'])
         self.oneformer_model = AutoModelForUniversalSegmentation.from_pretrained(
             self.slam_cfg['oneformer_checkpoint'], is_training=False).to(self.semantic_device)
