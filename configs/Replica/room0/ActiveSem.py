@@ -55,6 +55,11 @@ if slam["method"] == "semsplatam":
         dataset_eval_basedir = "data/replica_sim_nvs",
         # dataset_eval_basedir="data/Replica",
 
+        ### Validation during training ###
+        eval_during_training = True,                               # enable/disable validation during training
+        eval_during_training_freq = 200,                          # evaluate every N iterations during training
+        eval_during_training_max_frames = None,                   # max frames to evaluate during training (None or -1 = all frames, set to number to limit processed frames)
+
         ### bounding box ###
         bbox_bound=[[-1.0, 7.0], [-1.2, 3.6], [-1.6, 1.4]],
         bbox_voxel_size=0.05,
@@ -159,7 +164,7 @@ if planner["local_planner_method"] == "RRTNaruto":
         rrt_step_size = planner['trans_step_size'] / slam['bbox_voxel_size'], # Unit: voxel
         rrt_step_amplifier = 10,                    # rrt step amplifier to fast expansion
         rrt_maxz = 100,                             # Maximum Z-level to limit the RRT nodes. Unit: voxel
-        rrt_max_iter = None,                        # maximum iterations for RRT
+        rrt_max_iter = 50000,                       # maximum iterations for RRT
         rrt_z_levels = None,                        # Z levels for sampling RRT nodes. Unit: voxel. Min and Max level
         enable_eval = False,                        # enable RRT evaluation
         enable_direct_line = True,                  # enable direct connection attempt

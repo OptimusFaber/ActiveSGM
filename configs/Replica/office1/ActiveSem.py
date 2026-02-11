@@ -53,6 +53,12 @@ if slam["method"] == "semsplatam":
         # room_cfg        = f"{dirs['cfg_dir']}/../replica_splatam.py",   # SplaTAM room configuration
         enable_active_planning = True,                             # enable/disable active planning
         dataset_eval_basedir = "data/replica_sim_nvs",
+        # dataset_eval_basedir="data/Replica",
+        
+        ### Validation during training ###
+        eval_during_training = True,                               # enable/disable validation during training
+        eval_during_training_freq = 200,                          # evaluate every N iterations during training
+        eval_during_training_max_frames = None,                   # max frames to evaluate during training (None or -1 = all frames, set to number to limit processed frames)
 
         ### bounding box ###
         # bbox_bound = [[-2.2,2.6],[-3.4,2.1],[-1.4,2.0]],
@@ -83,9 +89,9 @@ if slam["method"] == "semsplatam":
         lambda_cosine=0.2,
         uncert_mask_thres=3.0,
 
-        semantic_dir="./data/replica_v1/office_0/habitat/",
-        class_info_file='./configs/Replica/office0/class_info_file.json',
-        semantic_device="cuda:1",
+        semantic_dir="./data/replica_v1/office_1/habitat/",
+        class_info_file='./configs/Replica/office1/class_info_file.json',
+        semantic_device="cuda:0",
         oneformer_checkpoint='lly00412/oneformer-replica-finetune',
         coco_checkpoint='shi-labs/oneformer_coco_swin_large',
         ade20k_checkpoint="shi-labs/oneformer_ade20k_swin_large",
@@ -111,6 +117,7 @@ planner = dict(
     # gs_z_levels = [20, 30, 40, 50], #[20,30,40],
     max_exploration_steps = 1500,
     post_refine_steps = 200,
+    max_refinement_steps = 200,
     num_exploration_stage = 2,
     gs_z_levels = [
         [35], 
@@ -161,7 +168,7 @@ if planner["local_planner_method"] == "RRTNaruto":
         rrt_step_size = planner['trans_step_size'] / slam['bbox_voxel_size'], # Unit: voxel
         rrt_step_amplifier = 10,                    # rrt step amplifier to fast expansion
         rrt_maxz = 100,                             # Maximum Z-level to limit the RRT nodes. Unit: voxel
-        rrt_max_iter = None,                        # maximum iterations for RRT
+        rrt_max_iter = 50000,                       # maximum iterations for RRT
         rrt_z_levels = None,                        # Z levels for sampling RRT nodes. Unit: voxel. Min and Max level
         enable_eval = False,                        # enable RRT evaluation
         enable_direct_line = True,                  # enable direct connection attempt

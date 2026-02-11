@@ -52,8 +52,8 @@ if slam["method"] == "semsplatam":
         room_cfg        = f"{dirs['cfg_dir']}/../replica_splatam_s.py",   # SplaTAM room configuration
         # room_cfg        = f"{dirs['cfg_dir']}/../replica_splatam.py",   # SplaTAM room configuration
         enable_active_planning = True,                             # enable/disable active planning
-        # dataset_eval_basedir = "data/replica_sim_nvs",
-        dataset_eval_basedir="data/Replica",
+        dataset_eval_basedir = "data/replica_sim_nvs",
+        # dataset_eval_basedir="data/Replica",
         
         ### Validation during training ###
         eval_during_training = True,                               # enable/disable validation during training
@@ -165,7 +165,7 @@ if planner["local_planner_method"] == "RRTNaruto":
         rrt_step_size = planner['trans_step_size'] / slam['bbox_voxel_size'], # Unit: voxel
         rrt_step_amplifier = 10,                    # rrt step amplifier to fast expansion
         rrt_maxz = 100,                             # Maximum Z-level to limit the RRT nodes. Unit: voxel
-        rrt_max_iter = None,                        # maximum iterations for RRT
+        rrt_max_iter = 50000,                       # maximum iterations for RRT
         rrt_z_levels = None,                        # Z levels for sampling RRT nodes. Unit: voxel. Min and Max level
         enable_eval = False,                        # enable RRT evaluation
         enable_direct_line = True,                  # enable direct connection attempt
