@@ -69,6 +69,54 @@ pip install .
 ### Dataset download
 We run the experiments on [Replica](https://github.com/facebookresearch/Replica-Dataset/tree/main) and [Matterport3D](https://niessner.github.io/Matterport/)(MP3D) dataset using Habitat simulator, please follow the instruction of [ActiveGAMER](https://github.com/oppo-us-research/ActiveGAMER) to download these two datasets.
 
+### Replica Data
+Follow the steps to download Replica Dataset [https://github.com/facebookresearch/Replica-Dataset/tree/main](https://github.com/facebookresearch/Replica-Dataset/tree/main).
+
+```bash
+# Download Replica data and save as data/replica_v1.
+# This process can take a while.
+bash scripts/data/replica_download.sh data/replica_v1
+
+# Once the download is completed, create modified Habitat Simulator configs that adjust the coordinate system direction.
+# P.S. we adjust the config so the coordinates matches with the mesh coordinates.
+bash scripts/data/replica_update.sh data/replica_v1
+```
+
+We use three versions of Replica data for different purposes:
+
+1. **ReplicaSLAM**: a SLAM dataset with predefined trajectory. Used for passive mapping experiment, and pose initialization for the first frame.
+2. **ReplicaSLAM-Habitat**: Use same trajectory in (1) but using HabitatSim to re-generate the RGBD data, as (1)'s generated RGBD does not match with HabitatSim's simulation data. e.g. different lighting configuration.
+3. **ReplicaNVS**: Novel View Synthesis evaluation data.
+
+```bash
+# (1) Download ReplicaSLAM Data and save as data/Replica
+bash scripts/data/replica_slam_download.sh
+
+# (2) Generate ReplicaSLAM-Habitat using HabitatSim
+bash scripts/data/generate_replica_habitat.sh all
+
+# (3) Generate Replica NVS data
+bash scripts/data/generate_replica_nvs.sh all
+```
+
+### Matterport3D
+To download Matterport3D dataset, please refer to the instruction in [Matterport3D](https://niessner.github.io/Matterport/).
+
+The download script is not included here as there is a Term of Use agreement for using Matterport3D data.
+
+However, our method does not require the full Matterport3D dataset. Users can download the data related to the task habitat only.
+
+```bash
+# Example use of the Matterport3D download script:
+python download_mp.py -o data/MP3D --task_data habitat
+
+# Unzip data
+cd data/MP3D/v1/
+unzip mp3d_habitat.zip
+rm mp3d_habitat.zip
+cd ${ROOT}
+```
+
 ### Dataset configuration
 After downloading the datasets, you need to configure the paths in the configuration files:
 
