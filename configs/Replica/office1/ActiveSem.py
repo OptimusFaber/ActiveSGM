@@ -53,7 +53,7 @@ if slam["method"] == "semsplatam":
         # room_cfg        = f"{dirs['cfg_dir']}/../replica_splatam.py",   # SplaTAM room configuration
         enable_active_planning = True,                             # enable/disable active planning
         dataset_eval_basedir = "data/replica_sim_nvs",
-        # dataset_eval_basedir="data/Replica",
+        # dataset_eval_basedir = "data/Replica",
         
         ### Validation during training ###
         eval_during_training = True,                               # enable/disable validation during training

@@ -16,7 +16,7 @@ GPU_ID=${5:-0}
 export CUDA_VISIBLE_DEVICES=0,1
 PROJ_DIR=${PWD}
 DATASET=Replica
-RESULT_DIR=${PROJ_DIR}/results/
+RESULT_DIR=${PROJ_DIR}/results
 
 ##################################################
 ### Random Seed
@@ -61,23 +61,18 @@ do
         GT_MESH=$PROJ_DIR/data/replica_v1/${DASHSCENE}/mesh.ply
         result_dir=${RESULT_DIR}/${DATASET}/$scene/${EXP}/run_${i}
 
-        python src/evaluation/eval_splatam_recon_v2.py \
-        --ckpt ${result_dir}/splatam/exploration_stage_0/params.npz \
-        --gt_mesh ${GT_MESH} \
-        --transform_traj data/Replica/${scene}/traj.txt \
-        --result_dir ${result_dir}/eval_3d/exploration_stage_0
-
-        python src/evaluation/eval_splatam_recon_v2.py \
-        --ckpt ${result_dir}/splatam/exploration_stage_1/params.npz \
-        --gt_mesh ${GT_MESH} \
-        --transform_traj data/Replica/${scene}/traj.txt \
-        --result_dir ${result_dir}/eval_3d/exploration_stage_1
-
-        python src/evaluation/eval_splatam_recon_v2.py \
-        --ckpt ${result_dir}/splatam/final/params.npz \
-        --gt_mesh ${GT_MESH} \
-        --transform_traj data/Replica/${scene}/traj.txt \
-        --result_dir ${result_dir}/eval_3d/final
+        for stage in exploration_stage_0 exploration_stage_1 final; do
+            ckpt="${result_dir}/splatam/${stage}/params.npz"
+            if [[ -f "$ckpt" ]]; then
+                python src/evaluation/eval_splatam_recon_v2.py \
+                --ckpt "$ckpt" \
+                --gt_mesh ${GT_MESH} \
+                --transform_traj data/Replica/${scene}/traj.txt \
+                --result_dir ${result_dir}/eval_3d/${stage}
+            else
+                echo "Skipping eval for ${stage}: checkpoint not found: $ckpt"
+            fi
+        done
 
     done
 done

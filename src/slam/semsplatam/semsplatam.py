@@ -474,7 +474,7 @@ class SemSplatam(SplatamOurs):
         Returns:
         '''
         if time_idx == 0:
-            # Use simulator data for initialization
+            # Используем данные из симулятора для инициализации
             self.init_camera_parameters_from_simulator(color, depth, c2w)
 
         seg_img = color.clone().to(self.semantic_device)
@@ -1255,20 +1255,20 @@ class SemSplatam(SplatamOurs):
         save_params(params, results_dir)
 
     def load_params_by_step(self, step=1100,stage='final'):
-        """ load checkpoint parameters
-        Attributes:
-            params: SplaTAM parameters
-        """
-        ### load self variables ###
         config = self.config
         checkpoint_time_idx = step
         print(f"Loading Checkpoint for Frame {checkpoint_time_idx}")
-        # Use logger/splatam directory where checkpoints are actually saved
-        checkpoint_dir = os.path.join(self.main_cfg.dirs.result_dir, "logger", "splatam")
+        
+        checkpoint_dir = os.path.join(self.main_cfg.dirs.result_dir, "splatam")
         if checkpoint_time_idx == 0:
             ckpt_path = os.path.join(checkpoint_dir, f"{stage}/params.npz")
         else:
             ckpt_path = os.path.join(checkpoint_dir, f"params{checkpoint_time_idx}.npz")
+        
+        if not os.path.exists(ckpt_path):
+            print(f"Error: Checkpoint not found at {ckpt_path}")
+            raise FileNotFoundError(f"Checkpoint not found: {ckpt_path}")
+        
         params = dict(np.load(ckpt_path, allow_pickle=True))
         params = {k: torch.tensor(params[k]).cuda().float().requires_grad_(True) for k in params.keys()}
         self.variables = {'seman_cls_ids': params.pop('seman_cls_ids').to(torch.long),
@@ -1408,9 +1408,7 @@ class SemSplatam(SplatamOurs):
         """
         ### override from main_cfg ###
         config["data"]["sequence"] = self.main_cfg.general.scene
-        # Normalize path to avoid double slashes
-        result_dir = os.path.normpath(self.main_cfg.dirs.result_dir)
-        config["workdir"] = os.path.join(result_dir, "splatam")
+        config["workdir"] = os.path.join(self.main_cfg.dirs.result_dir, "splatam")
         config["run_name"] = ""
         if self.main_cfg.general.dataset == 'Replica':
             config["data"]['gradslam_data_cfg'] = os.path.join("third_parties/splatam", config["data"]['gradslam_data_cfg'])
