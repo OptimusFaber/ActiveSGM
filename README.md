@@ -191,6 +191,18 @@ bash scripts/evaluation/eval_replica_semantic.sh office0 1 ActiveSem 0 0 0 final
 bash scripts/evaluation/eval_replica_nvs_result.sh office0 1 ActiveSem 0 0,1
 ```
 
+You can also try to visualize all trouble cases of OneFormer by using this script:
+```
+bash scripts/evaluation/analyze_failure_cases.sh {SCENE}
+```
+P.s. before running this script you have to complete full cycle of training for specific {SCENE} which you want to evaluate. Script will find optimized parametres in results/{DATASET}/{SCENE}/{EXP}/{NUM_RUN}/splatam/
+
+For example you can try it this way:
+```
+bash scripts/evaluation/analyze_failure_cases.sh office0
+```
+The script will save all trouble frames in results/Replica/office0/ActiveSem/run_0/splatam/eval_final/failure_cases/
+
 ## Troubleshooting
 
 ### Common Issues
